@@ -87,6 +87,11 @@ func Render(msg message.Message) []channel.Part {
 		switch b.Type {
 		case message.BlockLink:
 			buttons = append(buttons, channel.Button{Text: truncate(b.Text, 64), URL: b.URL})
+		case message.BlockQuestion:
+			// Rendered in the footer so a long message never cuts it off.
+			for j, o := range b.Options {
+				buttons = append(buttons, channel.Button{Text: o, Data: AnswerData(msg.DeliveryID, j)})
+			}
 		case message.BlockImage:
 			photo = &msg.Blocks[i]
 			if b.Caption != "" {
@@ -115,7 +120,7 @@ func Render(msg message.Message) []channel.Part {
 	}
 	var rest []func(int) frag
 	for i, b := range msg.Blocks {
-		if b.Type != message.BlockLink && b.Type != message.BlockImage {
+		if b.Type != message.BlockLink && b.Type != message.BlockImage && b.Type != message.BlockQuestion {
 			rest = append(rest, blockRenderer(msg.Blocks[i]))
 		}
 	}
@@ -144,11 +149,23 @@ func renderHeader(msg message.Message) frag {
 	return wrap("b", text(truncate(title, 256)))
 }
 
+// maxQuestionLen keeps the question (always shown, in the footer) short
+// enough to leave room for the rest of the message.
+const maxQuestionLen = 1000
+
 func renderFooter(msg message.Message) frag {
-	if msg.Source == "" {
-		return frag{}
+	var q frag
+	if b, ok := message.Question(msg.Blocks); ok {
+		q = join(" ", text("❓"), wrap("b", text(truncate(b.Text, maxQuestionLen))))
+		if len(b.Options) == 0 {
+			q = join("\n", q, wrap("i", text("Reply to this message to answer.")))
+		}
 	}
-	return wrap("i", text("via "+truncate(msg.Source, 64)))
+	var src frag
+	if msg.Source != "" {
+		src = wrap("i", text("via "+truncate(msg.Source, 64)))
+	}
+	return join("\n\n", q, src)
 }
 
 // fit joins header, blocks and footer with blank lines within limit visible

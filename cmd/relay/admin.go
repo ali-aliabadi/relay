@@ -103,9 +103,9 @@ const recipientsUsage = `Usage:
   relay recipients add <username> --name "Display Name" [--timezone Europe/Berlin]
   relay recipients list
   relay recipients remove <username>
-  relay recipients link <username> [--yes]
-                                        link Telegram: then send /start to the bot from their phone
-                                        (--yes accepts the first /start without asking)
+  relay recipients link <username> <code>
+                                        link Telegram: they send /start to the bot (while relay serve
+                                        runs) and get back the code
 `
 
 func recipientsCmd(e env, args []string) error {
@@ -121,14 +121,10 @@ func recipientsCmd(e env, args []string) error {
 		}
 		return e.withStore(func(st *store.Store) error { return recipientsList(e, core.NewRecipients(st)) })
 	case "link":
-		switch {
-		case len(args) == 2:
-			return recipientsLink(e, args[1], false)
-		case len(args) == 3 && args[2] == "--yes":
-			return recipientsLink(e, args[1], true)
-		default:
+		if len(args) != 3 {
 			return errUsage
 		}
+		return recipientsLink(e, args[1], args[2])
 	case "remove":
 		if len(args) != 2 {
 			return errUsage

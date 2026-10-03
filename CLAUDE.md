@@ -6,7 +6,8 @@ Guidance for Claude Code (and other agents) working in this repo, locally or in 
 
 Relay is ali's personal notification gateway: a small Go HTTP service where apps
 `POST /v1/messages` with recipients, urgency and content blocks (text, fields, table,
-image, code, link), and Relay formats them with the channel's one built-in layout, routes it to a channel (Telegram in the MVP), retries and logs it.
+image, code, link, question), and Relay formats them with the channel's one built-in layout, routes it to a channel (Telegram in the MVP), retries and logs it.
+Answers to a `question` come back through the bot and apps fetch them from `GET /v1/messages/{id}/answers`.
 Users are ali and ali's wife, registered by hand.
 
 **Relay handles private data.** Message content, images and contact details
@@ -30,7 +31,7 @@ cmd/relay/            main: subcommands serve, migrate, clients, recipients, sen
 internal/api/         handlers, auth middleware, request/response types
 internal/core/        router, renderer, worker, retry policy, retention
 internal/message/     content block types, validation, limits
-internal/channel/     channel.go (interface + Error), telegram/ (client + layout), fake/
+internal/channel/     channel.go (interface + Error), answer.go, telegram/ (client, layout, poller), fake/
 internal/store/       migrations/*.sql, queries/*.sql, generated sqlc code
 internal/crypto/      field encryption (AES-256-GCM) for private columns
 internal/id/          prefixed ULIDs

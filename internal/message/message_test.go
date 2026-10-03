@@ -165,6 +165,7 @@ func FuzzNormalize(f *testing.F) {
 	f.Add(`{"to":["ali"],"text":"hi"}`)
 	f.Add(`{"to":["ali"],"blocks":[{"type":"table","columns":["a"],"rows":[["1"]]}]}`)
 	f.Add(`{"to":["ali"],"blocks":[{"type":"image","base64":"` + pngB64 + `","content_type":"image/png"}]}`)
+	f.Add(`{"to":["ali"],"blocks":[{"type":"question","text":"ok?","options":["y","n"],"webhook":"https://a.b/h"}]}`)
 	f.Fuzz(func(t *testing.T, body string) {
 		var req Request
 		if json.Unmarshal([]byte(body), &req) != nil {
@@ -180,6 +181,9 @@ func FuzzNormalize(f *testing.F) {
 			}
 			if b.Attachment != nil && *b.Attachment >= len(images) {
 				t.Fatal("attachment index out of range")
+			}
+			if b.Type == BlockQuestion && len(b.Options) > MaxOptions {
+				t.Fatal("too many options passed validation")
 			}
 		}
 	})

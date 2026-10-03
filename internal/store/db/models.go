@@ -8,6 +8,14 @@ import (
 	"database/sql"
 )
 
+type Answer struct {
+	MessageID   string
+	RecipientID string
+	Answer      []byte
+	AnsweredAt  string
+	FetchedAt   sql.NullString
+}
+
 type Attachment struct {
 	ID          string
 	MessageID   string

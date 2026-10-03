@@ -125,6 +125,73 @@ func (q *Queries) DeliveryStatusCounts(ctx context.Context, messageID string) ([
 	return items, nil
 }
 
+const getDelivery = `-- name: GetDelivery :one
+SELECT id, message_id, recipient_id, channel, status, attempts, next_attempt_at, provider_message_id, last_error, created_at, updated_at FROM deliveries WHERE id = ?
+`
+
+func (q *Queries) GetDelivery(ctx context.Context, id string) (Delivery, error) {
+	row := q.db.QueryRowContext(ctx, getDelivery, id)
+	var i Delivery
+	err := row.Scan(
+		&i.ID,
+		&i.MessageID,
+		&i.RecipientID,
+		&i.Channel,
+		&i.Status,
+		&i.Attempts,
+		&i.NextAttemptAt,
+		&i.ProviderMessageID,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listDeliveriesByProviderID = `-- name: ListDeliveriesByProviderID :many
+SELECT id, message_id, recipient_id, channel, status, attempts, next_attempt_at, provider_message_id, last_error, created_at, updated_at FROM deliveries WHERE channel = ? AND provider_message_id = ?
+`
+
+type ListDeliveriesByProviderIDParams struct {
+	Channel           string
+	ProviderMessageID sql.NullString
+}
+
+func (q *Queries) ListDeliveriesByProviderID(ctx context.Context, arg ListDeliveriesByProviderIDParams) ([]Delivery, error) {
+	rows, err := q.db.QueryContext(ctx, listDeliveriesByProviderID, arg.Channel, arg.ProviderMessageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Delivery{}
+	for rows.Next() {
+		var i Delivery
+		if err := rows.Scan(
+			&i.ID,
+			&i.MessageID,
+			&i.RecipientID,
+			&i.Channel,
+			&i.Status,
+			&i.Attempts,
+			&i.NextAttemptAt,
+			&i.ProviderMessageID,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDeliveriesForMessage = `-- name: ListDeliveriesForMessage :many
 SELECT id, message_id, recipient_id, channel, status, attempts, next_attempt_at, provider_message_id, last_error, created_at, updated_at FROM deliveries WHERE message_id = ? ORDER BY id
 `

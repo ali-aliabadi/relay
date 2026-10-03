@@ -61,10 +61,13 @@ func Normalize(req Request) (Request, []Image, error) {
 	blocks := make([]Block, len(req.Blocks))
 	copy(blocks, req.Blocks)
 	var images []Image
-	imageBlocks := 0
+	imageBlocks, questionBlocks := 0, 0
 	for i := range blocks {
-		if blocks[i].Type == BlockImage {
+		switch blocks[i].Type {
+		case BlockImage:
 			imageBlocks++
+		case BlockQuestion:
+			questionBlocks++
 		}
 		if img, ok := checkBlock(c, fmt.Sprintf("blocks[%d]", i), &blocks[i]); ok {
 			n := len(images)
@@ -74,6 +77,9 @@ func Normalize(req Request) (Request, []Image, error) {
 	}
 	if imageBlocks > MaxImages {
 		c.addf("blocks: at most %d image", MaxImages)
+	}
+	if questionBlocks > 1 {
+		c.addf("blocks: at most 1 question")
 	}
 	if len(c.problems) > 0 {
 		return Request{}, nil, &ValidationError{Problems: c.problems}
@@ -141,10 +147,31 @@ func checkBlock(c *checker, path string, b *Block) (Image, bool) {
 		checkURL(c, path+".url", b.URL)
 	case BlockImage:
 		return checkImage(c, path, b)
+	case BlockQuestion:
+		checkQuestion(c, path, b)
 	default:
-		c.addf("%s.type: must be one of text, fields, table, image, code, link", path)
+		c.addf("%s.type: must be one of text, fields, table, image, code, link, question", path)
 	}
 	return Image{}, false
+}
+
+func checkQuestion(c *checker, path string, b *Block) {
+	c.required(path+".text", b.Text, MaxTextLen)
+	if b.Options != nil && (len(b.Options) == 0 || len(b.Options) > MaxOptions) {
+		c.addf("%s.options: must have 1-%d options, or be left out for a typed reply", path, MaxOptions)
+	}
+	seen := map[string]bool{}
+	for i, o := range b.Options {
+		p := fmt.Sprintf("%s.options[%d]", path, i)
+		c.required(p, o, MaxOptionLen)
+		if seen[o] {
+			c.addf("%s: duplicate", p)
+		}
+		seen[o] = true
+	}
+	if b.Webhook != "" {
+		checkURL(c, path+".webhook", b.Webhook)
+	}
 }
 
 func checkFields(c *checker, path string, items []Field) {

@@ -15,6 +15,12 @@ import (
 
 func newStore(t *testing.T) *store.Store {
 	t.Helper()
+	return newStoreWithKey(t, 3)
+}
+
+// newStoreWithKey opens a store whose encryption key is keyByte repeated.
+func newStoreWithKey(t *testing.T, keyByte byte) *store.Store {
+	t.Helper()
 	conn, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "relay.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -23,7 +29,7 @@ func newStore(t *testing.T) *store.Store {
 	if _, err := store.Migrate(t.Context(), conn); err != nil {
 		t.Fatal(err)
 	}
-	c, err := crypto.New(bytes.Repeat([]byte{3}, crypto.KeySize))
+	c, err := crypto.New(bytes.Repeat([]byte{keyByte}, crypto.KeySize))
 	if err != nil {
 		t.Fatal(err)
 	}

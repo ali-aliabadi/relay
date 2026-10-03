@@ -153,6 +153,16 @@ func (m *Messages) Get(ctx context.Context, clientID, messageID string) (store.M
 	return msg, ds, nil
 }
 
+// TakeAnswers returns the answers to one of clientID's messages. Returned
+// answers become final: later replies can't change them.
+func (m *Messages) TakeAnswers(ctx context.Context, clientID, messageID string) ([]store.Answer, error) {
+	msg, err := m.store.Message(ctx, clientID, messageID)
+	if err != nil {
+		return nil, err
+	}
+	return m.store.TakeAnswers(ctx, msg.ID)
+}
+
 // List returns one page of clientID's messages, newest first.
 func (m *Messages) List(ctx context.Context, f store.ListFilter) ([]store.Message, error) {
 	return m.store.ListMessages(ctx, f)

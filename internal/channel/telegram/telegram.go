@@ -34,27 +34,27 @@ type sentMessage struct {
 }
 
 type inlineButton struct {
-	Text string `json:"text"`
-	URL  string `json:"url"`
+	Text         string `json:"text"`
+	URL          string `json:"url,omitempty"`
+	CallbackData string `json:"callback_data,omitempty"`
 }
 
 type replyMarkup struct {
 	InlineKeyboard [][]inlineButton `json:"inline_keyboard"`
 }
 
-// Send implements channel.Channel. It returns the first Telegram message ID.
+// Send implements channel.Channel. It returns the last Telegram message ID:
+// the part carrying the buttons and question, which replies point at.
 func (c *Channel) Send(ctx context.Context, to channel.Contact, msg message.Message) (string, error) {
-	var first string
+	var last string
 	for _, part := range Render(msg) {
 		id, err := c.sendPart(ctx, to.Address, part, msg)
 		if err != nil {
 			return "", classify(err)
 		}
-		if first == "" {
-			first = strconv.FormatInt(id, 10)
-		}
+		last = strconv.FormatInt(id, 10)
 	}
-	return first, nil
+	return last, nil
 }
 
 func (c *Channel) sendPart(ctx context.Context, chatID string, p channel.Part, msg message.Message) (int64, error) {
@@ -100,7 +100,7 @@ func (c *Channel) sendPart(ctx context.Context, chatID string, p channel.Part, m
 func markup(buttons []channel.Button) replyMarkup {
 	rows := make([][]inlineButton, len(buttons))
 	for i, b := range buttons {
-		rows[i] = []inlineButton{{Text: b.Text, URL: b.URL}}
+		rows[i] = []inlineButton{{Text: b.Text, URL: b.URL, CallbackData: b.Data}}
 	}
 	return replyMarkup{InlineKeyboard: rows}
 }

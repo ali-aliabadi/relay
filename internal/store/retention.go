@@ -12,6 +12,7 @@ import (
 type PurgeResult struct {
 	Redacted           int64 // messages whose content was dropped
 	AttachmentsDeleted int64
+	AnswersDeleted     int64
 	MessagesDeleted    int64 // messages (with deliveries) deleted entirely
 }
 
@@ -27,6 +28,9 @@ func (s *Store) Purge(ctx context.Context, contentCutoff, metadataCutoff time.Ti
 		}
 		if res.AttachmentsDeleted, err = q.DeleteAttachmentsBefore(ctx, formatTime(contentCutoff)); err != nil {
 			return fmt.Errorf("deleting attachments: %w", err)
+		}
+		if res.AnswersDeleted, err = q.DeleteAnswersBefore(ctx, formatTime(contentCutoff)); err != nil {
+			return fmt.Errorf("deleting answers: %w", err)
 		}
 		if res.Redacted, err = q.RedactMessagesBefore(ctx, db.RedactMessagesBeforeParams{
 			Now: nullString(formatTime(s.clock())), Cutoff: formatTime(contentCutoff),

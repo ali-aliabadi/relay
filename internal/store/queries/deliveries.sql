@@ -36,3 +36,9 @@ SELECT status, count(*) AS n FROM deliveries WHERE message_id = ? GROUP BY statu
 -- name: QueueStats :one
 SELECT count(*) AS depth, CAST(coalesce(min(next_attempt_at), '') AS TEXT) AS oldest
 FROM deliveries WHERE status = 'queued';
+
+-- name: GetDelivery :one
+SELECT * FROM deliveries WHERE id = ?;
+
+-- name: ListDeliveriesByProviderID :many
+SELECT * FROM deliveries WHERE channel = ? AND provider_message_id = ?;

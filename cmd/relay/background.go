@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ali-aliabadi/relay/internal/channel"
+	"github.com/ali-aliabadi/relay/internal/channel/telegram"
 	"github.com/ali-aliabadi/relay/internal/config"
 	"github.com/ali-aliabadi/relay/internal/core"
 	"github.com/ali-aliabadi/relay/internal/obs"
@@ -18,12 +19,13 @@ import (
 )
 
 // background is everything serve runs besides the public API: the delivery
-// worker, the retention job and the internal metrics listener.
+// worker, the retention job, the Telegram poller and the internal metrics listener.
 type background struct {
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 	workerErr error
 	metrics   *http.Server
+	webhooks  *core.Webhooks
 }
 
 func startBackground(ctx context.Context, cfg config.Config, logger *slog.Logger, st *store.Store,
@@ -58,13 +60,33 @@ func startBackground(ctx context.Context, cfg config.Config, logger *slog.Logger
 	b.wg.Add(2)
 	go func() { defer b.wg.Done(); b.workerErr = worker.Run(bctx) }()
 	go func() { defer b.wg.Done(); retention.Run(bctx) }()
+	b.webhooks = core.NewWebhooks(logger)
+	if p := newPoller(cfg, logger, st, b.webhooks); p != nil {
+		b.wg.Go(func() { p.Run(bctx) })
+	}
 	return b, nil
+}
+
+// newPoller returns the Telegram update reader, or nil without a bot token.
+func newPoller(cfg config.Config, logger *slog.Logger, st *store.Store, webhooks *core.Webhooks) *telegram.Poller {
+	if cfg.TelegramBotToken == "" {
+		return nil
+	}
+	answers := &core.Answers{Store: st, Logger: logger, Notify: webhooks.Notify}
+	recipients := core.NewRecipients(st)
+	return &telegram.Poller{
+		Client:   telegram.NewClient(cfg.TelegramAPIURL, cfg.TelegramBotToken, nil),
+		OnAnswer: answers.Record,
+		LinkCode: func(chatID string) (string, error) { return recipients.LinkCode(telegram.Name, chatID, time.Now()) },
+		Logger:   logger,
+	}
 }
 
 // stop cancels background work and waits for it to finish.
 func (b *background) stop(ctx context.Context) error {
 	b.cancel()
 	b.wg.Wait()
+	b.webhooks.Wait()
 	if b.metrics != nil {
 		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 		defer cancel()

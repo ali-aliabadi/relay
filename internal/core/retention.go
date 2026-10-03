@@ -48,10 +48,11 @@ func (r *Retention) Pass(ctx context.Context) {
 		}
 		return
 	}
-	if res.Redacted+res.AttachmentsDeleted+res.MessagesDeleted > 0 {
+	if res.Redacted+res.AttachmentsDeleted+res.AnswersDeleted+res.MessagesDeleted > 0 {
 		r.Logger.Info("retention purge",
 			slog.Int64("messages_redacted", res.Redacted),
 			slog.Int64("attachments_deleted", res.AttachmentsDeleted),
+			slog.Int64("answers_deleted", res.AnswersDeleted),
 			slog.Int64("messages_deleted", res.MessagesDeleted))
 	}
 }
