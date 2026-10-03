@@ -71,7 +71,7 @@ message and delivery attempt.
 - **message** (`internal/message`): the content block types, their validation and limits. Shared by the API and every layout.
 - **layouts**: each channel package owns its one layout (`internal/channel/telegram/layout.go`), turning blocks into what that platform supports and enforcing its limits (Telegram: 4096 chars per text, 1024 per photo caption; truncate with `…`).
 - **channels** (`internal/channel`): the `Channel` interface and one package per provider. `fake` records sends in memory for tests.
-- **cli** (`cmd/relay`): one binary with subcommands: `serve`, `migrate`, `clients`, `recipients`, `send`.
+- **cli** (`cmd/relay`): one binary with subcommands: `serve`, `migrate`, `clients`, `recipients`, `send`, `version`.
 
 ### Channel interface
 
@@ -205,6 +205,7 @@ The MVP sends only; it does not run a Telegram webhook.
 | `RELAY_ENCRYPTION_KEY` | — (required) | 32-byte base64 key for private columns. Losing it makes stored content unreadable |
 | `RELAY_RETENTION_DAYS` | `30` | Message content is purged after this many days; metadata is kept |
 | `RELAY_METRICS_ADDR` | `127.0.0.1:9090` | Internal listener for `/metrics` (and `/debug/pprof` when `RELAY_PPROF=true`) |
+| `RELAY_PPROF` | `false` | Serve `/debug/pprof` on the metrics listener |
 | `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image) |
 
 ## Privacy and security
@@ -239,7 +240,7 @@ or leaking content.
 
 ## Quality tooling
 
-Everything runs through the Makefile, locally and in CI.
+Everything runs through the Makefile, locally and in CI. Tool versions are pinned in the Makefile and installed into `bin/tools` by `make tools`, built with the repo's Go toolchain.
 
 - **golangci-lint** (v2) with, beyond the defaults: `gosec`, `revive`, `gocritic`, `errorlint`, `bodyclose`, `noctx`, `contextcheck`, `sqlclosecheck`, `rowserrcheck`, `nilerr`, `exhaustive`, `unparam`, `misspell`, `funlen`, `gocognit`, `forbidigo` (no `fmt.Print*`/`log.*` outside `cmd/`), `testifylint` if testify is used; formatters `gofumpt` and `goimports`.
 - **File length:** `scripts/check-file-length.sh` fails on hand-written `.go` files over 300 lines (tests 500; generated code exempt).

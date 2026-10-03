@@ -47,6 +47,7 @@ deploy/               docker-compose.yml, Caddyfile (copied to the VPS by CD)
 The Makefile is the single entry point; CI runs the same targets.
 
 ```bash
+make tools        # install pinned dev tools into bin/tools (run once)
 make run          # go run ./cmd/relay serve with ./data/relay.db
 make fmt          # gofumpt + goimports
 make lint         # golangci-lint + file-length check + actionlint + hadolint

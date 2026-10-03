@@ -5,7 +5,7 @@ message (who, how urgent, and content like text, a table or an image), and Relay
 formats it for the platform,
 picks the delivery channel, retries on failure and keeps a delivery log.
 
-> **Status:** design phase. No code yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for progress.
+> **Status:** early development. The service skeleton (config, logging, `/healthz`, tooling, CI) is in; messaging is not yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for progress.
 
 ## Why
 
@@ -57,17 +57,24 @@ Go · `net/http` · SQLite (`modernc.org/sqlite`) · sqlc · goose · slog + Pro
 
 ## Running locally
 
-Once the skeleton lands (see roadmap):
+Needs Go (the toolchain in `go.mod` is fetched automatically) and, for e2e tests, Docker.
 
 ```bash
-cp .env.example .env              # set RELAY_TELEGRAM_BOT_TOKEN and RELAY_ENCRYPTION_KEY
+make tools                        # installs pinned golangci-lint, gofumpt, govulncheck, ... into bin/tools
+cp .env.example .env              # set RELAY_ENCRYPTION_KEY (openssl rand -base64 32)
 make run                          # starts on :8080 with ./data/relay.db
+curl localhost:8080/healthz       # {"status":"ok"}
+```
+
+Coming with later roadmap phases:
+
+```bash
 go run ./cmd/relay clients create my-script     # prints an API key once
 go run ./cmd/relay recipients add ali --name "Ali"
 go run ./cmd/relay recipients link ali          # then send /start to the bot
 ```
 
-Common commands: `make test`, `make lint`, `make build`, `make generate` (sqlc).
+Common commands: `make check` (everything CI runs), `make test`, `make test-e2e`, `make lint`, `make build`, `make help` for the rest.
 
 ## Deployment
 

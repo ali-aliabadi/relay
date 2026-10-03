@@ -1,0 +1,19 @@
+# Build output and local tools
+/bin/
+coverage.out
+*.test
+
+# Local data and secrets: never commit
+/data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
