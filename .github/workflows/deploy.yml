@@ -21,12 +21,37 @@ env:
   URL: https://relay.alialiabadi.ir
 
 jobs:
-  deploy:
-    name: build, push and deploy
+  # ci finishing for an older commit (several merges in a row) must not deploy
+  # it over a newer one: only the current head of master is deployed. The run
+  # for the newest commit deploys that.
+  current:
+    name: check commit is master's head
     # Only pushes to master that passed ci; never a pull request's run.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.head.outputs.deploy }}
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)
+          if [ "$head" = "$SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping $SHA: master is now at $head, whose own run deploys it."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: build, push and deploy
+    needs: current
+    if: needs.current.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     environment: production
     permissions:
