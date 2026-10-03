@@ -15,9 +15,14 @@ import (
 
 var testKey = base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32))
 
+// lookup is a test environment. The metrics listener picks a free port
+// unless a test sets RELAY_METRICS_ADDR, so parallel packages don't collide.
 func lookup(kv map[string]string) func(string) (string, bool) {
 	return func(k string) (string, bool) {
 		v, ok := kv[k]
+		if !ok && k == "RELAY_METRICS_ADDR" {
+			return "127.0.0.1:0", true
+		}
 		return v, ok
 	}
 }

@@ -44,6 +44,31 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) er
 	return err
 }
 
+const deleteAttachmentsBefore = `-- name: DeleteAttachmentsBefore :execrows
+DELETE FROM attachments WHERE message_id IN (SELECT m.id FROM messages m WHERE m.created_at < ?1)
+`
+
+func (q *Queries) DeleteAttachmentsBefore(ctx context.Context, cutoff string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAttachmentsBefore, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteMessagesBefore = `-- name: DeleteMessagesBefore :execrows
+DELETE FROM messages WHERE created_at < ?1
+`
+
+// Deliveries and attachments go with them (ON DELETE CASCADE).
+func (q *Queries) DeleteMessagesBefore(ctx context.Context, cutoff string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteMessagesBefore, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getMessage = `-- name: GetMessage :one
 SELECT id, client_id, urgency, title, blocks, source, idempotency_key, request_id, status, created_at, redacted_at FROM messages WHERE id = ? AND client_id = ?
 `
@@ -181,6 +206,25 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]M
 		return nil, err
 	}
 	return items, nil
+}
+
+const redactMessagesBefore = `-- name: RedactMessagesBefore :execrows
+UPDATE messages SET title = NULL, blocks = NULL, redacted_at = ?1
+WHERE created_at < ?2 AND redacted_at IS NULL
+`
+
+type RedactMessagesBeforeParams struct {
+	Now    sql.NullString
+	Cutoff string
+}
+
+// Retention: drop content, keep metadata.
+func (q *Queries) RedactMessagesBefore(ctx context.Context, arg RedactMessagesBeforeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, redactMessagesBefore, arg.Now, arg.Cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateMessageStatus = `-- name: UpdateMessageStatus :exec

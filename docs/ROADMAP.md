@@ -65,11 +65,11 @@ should be one small PR unless noted. Design details are in
 - [x] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
 - [x] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
 - [x] `relay send` for manual test messages
-- [ ] Retention job: purge content after `RELAY_RETENTION_DAYS`, delete metadata after 180 days
-- [ ] Metrics on the internal listener (`/metrics`, optional pprof) with the metric set from ARCHITECTURE
+- [x] Retention job: purge content after `RELAY_RETENTION_DAYS`, delete metadata after 180 days
+- [x] Metrics on the internal listener (`/metrics`, optional pprof) with the metric set from ARCHITECTURE
 - [x] Integration test: API → worker → fake channel → status `delivered`
-- [ ] testcontainers e2e suite: real image + fake Telegram API container (send, retry, idempotency, restart durability)
-- [ ] Fuzz tests for request parsing, block validation and layouts
+- [x] testcontainers e2e suite: real image + fake Telegram API container (send, retry, idempotency, restart durability)
+- [x] Fuzz tests for request parsing, block validation and layouts
 
 ## Phase 6: deploy (MVP done when this is green)
 

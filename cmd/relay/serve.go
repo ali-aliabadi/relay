@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ali-aliabadi/relay/internal/api"
-	"github.com/ali-aliabadi/relay/internal/channel"
 	"github.com/ali-aliabadi/relay/internal/config"
 	"github.com/ali-aliabadi/relay/internal/core"
 	"github.com/ali-aliabadi/relay/internal/obs"
@@ -46,24 +45,23 @@ func serve(ctx context.Context, lookup config.LookupFunc, logOut io.Writer, ln n
 	}
 
 	channels := buildChannels(cfg)
-	srv := newHTTPServer(ctx, cfg, logger, st, channels)
+	metrics := obs.NewMetrics(ctx, st.QueueStats, time.Now)
+	msgs := core.NewMessages(st, channels)
+	msgs.OnCreated = metrics.MessageAccepted
+	srv := newHTTPServer(ctx, cfg, logger, st, msgs)
 
 	logger.Info("relay starting", slog.String("version", version), slog.Any("config", cfg),
 		slog.String("listen", ln.Addr().String()))
 
-	worker := &core.Worker{
-		Store: st, Channels: channels, Logger: logger, Clock: time.Now, Poll: cfg.WorkerPollInterval,
+	bg, err := startBackground(ctx, cfg, logger, st, channels, metrics)
+	if err != nil {
+		return err
 	}
-	workerCtx, stopWorker := context.WithCancel(context.WithoutCancel(ctx))
-	workerDone := make(chan error, 1)
-	go func() { workerDone <- worker.Run(workerCtx) }()
-
 	httpErr := runHTTP(ctx, logger, srv, ln)
-	// Stop the worker after the API: no new messages arrive, and the
-	// delivery in flight (if any) finishes before Run returns.
-	stopWorker()
-	if err := <-workerDone; err != nil && httpErr == nil {
-		return fmt.Errorf("delivery worker: %w", err)
+	// Stop background work after the API: no new messages arrive, and the
+	// delivery in flight (if any) finishes first.
+	if err := bg.stop(ctx); err != nil && httpErr == nil {
+		return err
 	}
 	if httpErr == nil {
 		logger.Info("relay stopped")
@@ -72,7 +70,7 @@ func serve(ctx context.Context, lookup config.LookupFunc, logOut io.Writer, ln n
 }
 
 // newHTTPServer builds the public API server with its timeouts.
-func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, st *store.Store, channels []channel.Channel) *http.Server {
+func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, st *store.Store, msgs *core.Messages) *http.Server {
 	return &http.Server{
 		Handler: api.NewHandler(api.Deps{
 			Logger:       logger,
@@ -80,7 +78,7 @@ func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, 
 			Health:       st.Ping,
 			Auth:         core.NewClients(st),
 			Recipients:   core.NewRecipients(st),
-			Messages:     core.NewMessages(st, channels),
+			Messages:     msgs,
 			MaxBodyBytes: cfg.MaxBodyBytes,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

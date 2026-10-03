@@ -16,6 +16,9 @@ type Messages struct {
 	store      *store.Store
 	channels   []channel.Channel
 	configured map[string]bool
+
+	// OnCreated, if set, is called with the urgency of each new message (metrics).
+	OnCreated func(urgency string)
 }
 
 // NewMessages returns a Messages service that routes to channels.
@@ -73,6 +76,9 @@ func (m *Messages) Create(ctx context.Context, clientID, requestID string, req m
 	}
 	if err != nil {
 		return store.Message{}, false, err
+	}
+	if m.OnCreated != nil {
+		m.OnCreated(created.Urgency)
 	}
 	return created, true, nil
 }

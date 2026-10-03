@@ -21,7 +21,7 @@ const linkTimeout = 5 * time.Minute
 // recipientsLink waits for someone to send /start to the bot, asks the
 // operator to confirm who it is, and stores that chat as the recipient's
 // Telegram contact. The chat ID is never printed.
-func recipientsLink(e env, username string) error {
+func recipientsLink(e env, username string, yes bool) error {
 	return e.withConfigStore(func(cfg config.Config, st *store.Store) error {
 		if cfg.TelegramBotToken == "" {
 			return errors.New("RELAY_TELEGRAM_BOT_TOKEN is not set")
@@ -45,12 +45,12 @@ func recipientsLink(e env, username string) error {
 		}
 		fmt.Fprintf(e.stdout, "From %s's Telegram, open @%s and send /start. Waiting up to %s...\n", rcp.DisplayName, bot, linkTimeout)
 
-		return confirmLoop(ctx, e, client, svc, rcp, offset)
+		return confirmLoop(ctx, e, client, svc, rcp, offset, yes)
 	})
 }
 
 // confirmLoop offers each /start to the operator until one is accepted.
-func confirmLoop(ctx context.Context, e env, client *telegram.Client, svc *core.Recipients, rcp store.Recipient, offset int64) error {
+func confirmLoop(ctx context.Context, e env, client *telegram.Client, svc *core.Recipients, rcp store.Recipient, offset int64, yes bool) error {
 	in := bufio.NewReader(e.stdin)
 	for {
 		msg, next, err := waitForStart(ctx, client, offset)
@@ -63,7 +63,12 @@ func confirmLoop(ctx context.Context, e env, client *telegram.Client, svc *core.
 			who += " (@" + msg.From.Username + ")"
 		}
 		fmt.Fprintf(e.stdout, "Got /start from %s. Link this chat to %s? [y/N] ", who, rcp.Username)
-		answer, _ := in.ReadString('\n')
+		answer := "y"
+		if yes {
+			fmt.Fprintln(e.stdout, "y (--yes)")
+		} else {
+			answer, _ = in.ReadString('\n')
+		}
 		if !strings.EqualFold(strings.TrimSpace(answer), "y") {
 			fmt.Fprintln(e.stdout, "Skipped. Waiting for another /start...")
 			continue

@@ -66,7 +66,7 @@ lint: ## golangci-lint, file length, go mod tidy, sqlc, actionlint, hadolint
 	sqlc vet
 	sqlc diff
 	actionlint
-	hadolint Dockerfile
+	hadolint Dockerfile test/e2e/faketelegram/Dockerfile
 
 .PHONY: test
 test: ## unit and integration tests with -race and coverage
@@ -74,8 +74,10 @@ test: ## unit and integration tests with -race and coverage
 	go tool cover -func=coverage.out | tail -1
 
 .PHONY: test-e2e
-test-e2e: docker ## end-to-end tests against the built image (needs Docker)
-	RELAY_E2E_IMAGE=$(IMAGE) go test -tags e2e -count=1 -timeout 5m ./test/e2e/...
+test-e2e: docker ## end-to-end tests against the built image and a fake Telegram (needs Docker)
+	docker build -f test/e2e/faketelegram/Dockerfile -t relay-faketelegram:e2e .
+	RELAY_E2E_IMAGE=$(IMAGE) RELAY_E2E_FAKE_TELEGRAM_IMAGE=relay-faketelegram:e2e \
+		go test -tags e2e -count=1 -timeout 10m ./test/e2e/...
 
 .PHONY: sec
 sec: ## govulncheck and gitleaks (trivy on the image when installed)
