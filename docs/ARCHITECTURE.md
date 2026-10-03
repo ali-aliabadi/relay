@@ -90,18 +90,22 @@ transient errors (timeouts, 5xx, 429) are retried.
 ## Data model
 
 ```
-clients          id, name, api_key_hash (sha256), created_at, revoked_at
+clients          id, name (unique), api_key_hash (sha256, unique), created_at, revoked_at
 recipients       id, username (unique), display_name, timezone,
                  channel_preference (JSON array), created_at
 contacts         recipient_id, channel, address (e.g. telegram chat_id), verified_at
-messages         id, client_id, urgency, title NULL, blocks (JSON), source NULL,
-                 idempotency_key NULL, status, created_at
-attachments      id, message_id, content_type, bytes (BLOB), size  -- inline images
+messages         id, client_id, urgency, title NULL, blocks (JSON) NULL, source NULL,
+                 idempotency_key NULL, request_id NULL, status, created_at, redacted_at NULL
                  UNIQUE (client_id, idempotency_key)
+attachments      id, message_id, content_type, bytes (BLOB), size  -- inline images
 deliveries       id, message_id, recipient_id, channel, status
                  (queued|sending|delivered|failed), attempts, next_attempt_at,
-                 provider_message_id, last_error, updated_at
+                 provider_message_id, last_error, created_at, updated_at
 ```
+
+Tables are SQLite `STRICT`. Times are stored as UTC text in a fixed-width format
+(`2006-01-02T15:04:05.000Z`) so they sort correctly as text. Deleting a recipient
+cascades to its contacts and deliveries.
 
 Private columns (`messages.title`, `messages.blocks`, `attachments.bytes`,
 `contacts.address`) are stored encrypted (see Privacy and security).
@@ -214,7 +218,7 @@ Relay stores who gets notified about what, which is private. Threat model: a
 leaked API key, a leaked DB file or backup, logs shipped somewhere, a malicious
 payload (markup injection, oversized or fake images), and a compromised dependency.
 
-- **Encryption at rest:** private columns are encrypted with AES-256-GCM (random nonce per value, key version byte prefix for future rotation). Search never needs these columns.
+- **Encryption at rest:** private columns are encrypted with AES-256-GCM (random nonce per value, key version byte prefix for future rotation). The column and row ID are bound in as associated data, so a ciphertext copied to another row fails to decrypt. Search never needs these columns.
 - **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days.
 - **Transport:** HTTPS only via Caddy; HSTS. Relay itself listens on the compose network only.
 - **Auth:** per-client API keys (`rk_` + 32 random bytes), SHA-256 hashed, constant-time compare, revocable. Failed auth is rate-limited per IP.

@@ -26,13 +26,14 @@ SMS is deliberately **not** in the MVP; the provider is undecided.
 ## Layout
 
 ```
-cmd/relay/            main: subcommands serve, migrate, clients, recipients, send
+cmd/relay/            main: subcommands serve, migrate, clients, recipients, send, version
 internal/api/         handlers, auth middleware, request/response types
 internal/core/        router, renderer, worker, retry policy, retention
 internal/message/     content block types, validation, limits
 internal/channel/     channel.go (interface + Error), telegram/ (client + layout), fake/
 internal/store/       migrations/*.sql, queries/*.sql, generated sqlc code
 internal/crypto/      field encryption (AES-256-GCM) for private columns
+internal/id/          prefixed ULIDs
 internal/obs/         logging setup, redaction, metrics, request IDs
 internal/config/      env parsing
 test/e2e/             testcontainers tests against the built Docker image
