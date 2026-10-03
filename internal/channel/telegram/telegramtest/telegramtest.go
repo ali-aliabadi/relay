@@ -52,13 +52,26 @@ func (s *Server) FailNext(f ...Failure) {
 	s.fails = append(s.fails, f...)
 }
 
-// AddStart queues a private "/start" message from a chat for getUpdates.
-func (s *Server) AddStart(chatID int64) { s.AddReply(chatID, 0, "/start") }
+// AddStart queues a private "/start" from a chat whose user has no username.
+func (s *Server) AddStart(chatID int64) { s.AddStartFrom(chatID, "") }
+
+// AddStartFrom queues a private "/start" from a user with this Telegram username.
+func (s *Server) AddStartFrom(chatID int64, username string) {
+	s.addMessage(chatID, 0, "/start", username)
+}
 
 // AddReply queues a private text message, replying to message replyTo when
 // it is not zero.
 func (s *Server) AddReply(chatID, replyTo int64, text string) {
-	m := map[string]any{"message_id": 9000 + len(s.Calls("")), "text": text, "chat": privateChat(chatID)}
+	s.addMessage(chatID, replyTo, text, "")
+}
+
+func (s *Server) addMessage(chatID, replyTo int64, text, username string) {
+	from := map[string]any{"id": chatID, "is_bot": false, "first_name": "Test"}
+	if username != "" {
+		from["username"] = username
+	}
+	m := map[string]any{"message_id": 9000 + len(s.Calls("")), "text": text, "chat": privateChat(chatID), "from": from}
 	if replyTo != 0 {
 		m["reply_to_message"] = map[string]any{"message_id": replyTo}
 	}
@@ -188,7 +201,7 @@ func (s *Server) control(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		chat, _ := strconv.ParseInt(q.Get("chat_id"), 10, 64)
 		to, _ := strconv.ParseInt(q.Get("reply_to"), 10, 64)
-		s.AddReply(chat, to, q.Get("text"))
+		s.addMessage(chat, to, q.Get("text"), q.Get("username"))
 	case "/_tap":
 		q := r.URL.Query()
 		chat, _ := strconv.ParseInt(q.Get("chat_id"), 10, 64)

@@ -18,8 +18,11 @@ type Poller struct {
 	OnAnswer channel.AnswerFunc
 	// LinkCode returns the code an admin passes to `relay recipients link`.
 	LinkCode func(chatID string) (string, error)
-	Logger   *slog.Logger
-	Backoff  time.Duration // after a failed poll; 5s when zero
+	// ClaimInvite links chatID if the admin invited this Telegram username,
+	// returning the recipient's display name and whether an invite matched.
+	ClaimInvite func(ctx context.Context, username, chatID string) (name string, ok bool, err error)
+	Logger      *slog.Logger
+	Backoff     time.Duration // after a failed poll; 5s when zero
 }
 
 // Feedback shown to the person who replied, by outcome.
@@ -118,6 +121,16 @@ func (p *Poller) handleTap(ctx context.Context, q *CallbackQuery) error {
 func (p *Poller) handleMessage(ctx context.Context, m *UpdateMessage) error {
 	chat := m.Chat.ID
 	if strings.HasPrefix(m.Text, "/start") {
+		if m.From.Username != "" {
+			name, ok, err := p.ClaimInvite(ctx, m.From.Username, strconv.FormatInt(chat, 10))
+			if err != nil {
+				_ = p.Client.SendText(ctx, chat, "Something went wrong, please try again.", 0)
+				return err
+			}
+			if ok {
+				return p.Client.SendText(ctx, chat, "Linked to Relay as "+name+". Notifications will arrive here.", 0)
+			}
+		}
 		code, err := p.LinkCode(strconv.FormatInt(chat, 10))
 		if err != nil {
 			return err

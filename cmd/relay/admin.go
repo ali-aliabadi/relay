@@ -103,9 +103,11 @@ const recipientsUsage = `Usage:
   relay recipients add <username> --name "Display Name" [--timezone Europe/Berlin]
   relay recipients list
   relay recipients remove <username>
+  relay recipients link <username> @<telegram_username>
+                                        link Telegram: they tap Start in the bot within 7 days
   relay recipients link <username> <code>
-                                        link Telegram: they send /start to the bot (while relay serve
-                                        runs) and get back the code
+                                        for accounts without a Telegram username: they send /start
+                                        to the bot and get back the code
 `
 
 func recipientsCmd(e env, args []string) error {
@@ -169,11 +171,18 @@ func recipientsList(e env, svc *core.Recipients) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(e.stdout, 0, 4, 2, ' ', 0)
+	invited, err := svc.InvitedRecipients(e.ctx, time.Now())
+	if err != nil {
+		return err
+	}
 	fmt.Fprintln(tw, "USERNAME\tNAME\tTIMEZONE\tCHANNELS\tLINKED")
 	for _, r := range rs {
 		linked, err := svc.Channels(e.ctx, r.ID)
 		if err != nil {
 			return err
+		}
+		if invited[r.ID] {
+			linked = append(linked, "telegram (invited)")
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.Username, r.DisplayName, r.Timezone,
 			strings.Join(r.ChannelPreference, ","), orDash(strings.Join(linked, ",")))

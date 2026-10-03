@@ -53,6 +53,13 @@ type Delivery struct {
 	UpdatedAt         string
 }
 
+type Invite struct {
+	RecipientID string
+	Channel     string
+	Handle      []byte
+	CreatedAt   string
+}
+
 type Message struct {
 	ID             string
 	ClientID       string

@@ -19,7 +19,7 @@ func (s *stack) question(text string) fakeCall {
 	s.t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		for _, c := range s.calls("sendMessage") {
+		for _, c := range s.sentMessages() {
 			if strings.Contains(fmt.Sprint(c.Params["text"]), text) {
 				return c
 			}

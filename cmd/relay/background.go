@@ -78,7 +78,14 @@ func newPoller(cfg config.Config, logger *slog.Logger, st *store.Store, webhooks
 		Client:   telegram.NewClient(cfg.TelegramAPIURL, cfg.TelegramBotToken, nil),
 		OnAnswer: answers.Record,
 		LinkCode: func(chatID string) (string, error) { return recipients.LinkCode(telegram.Name, chatID, time.Now()) },
-		Logger:   logger,
+		ClaimInvite: func(ctx context.Context, username, chatID string) (string, bool, error) {
+			rcp, ok, err := recipients.ClaimTelegramInvite(ctx, username, chatID, time.Now())
+			if ok {
+				logger.InfoContext(ctx, "recipient linked by invite", slog.String("recipient_id", rcp.ID), slog.String("channel", telegram.Name))
+			}
+			return rcp.DisplayName, ok, err
+		},
+		Logger: logger,
 	}
 }
 

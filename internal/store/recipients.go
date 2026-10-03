@@ -72,6 +72,15 @@ func (s *Store) RecipientByUsername(ctx context.Context, username string) (Recip
 	return recipientFromRow(row)
 }
 
+// RecipientByID returns one recipient by ID.
+func (s *Store) RecipientByID(ctx context.Context, id string) (Recipient, error) {
+	row, err := s.q.GetRecipientByID(ctx, id)
+	if err != nil {
+		return Recipient{}, fmt.Errorf("getting recipient: %w", mapErr(err))
+	}
+	return recipientFromRow(row)
+}
+
 // RecipientsByUsernames returns the recipients that exist among usernames.
 func (s *Store) RecipientsByUsernames(ctx context.Context, usernames []string) ([]Recipient, error) {
 	rows, err := s.q.GetRecipientsByUsernames(ctx, usernames)

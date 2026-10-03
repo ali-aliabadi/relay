@@ -21,6 +21,10 @@ type UpdateMessage struct {
 		ID   int64  `json:"id"`
 		Type string `json:"type"`
 	} `json:"chat"`
+	// From is set by Telegram, so a sender can't claim someone else's username.
+	From struct {
+		Username string `json:"username"`
+	} `json:"from"`
 	ReplyToMessage *struct {
 		MessageID int64 `json:"message_id"`
 	} `json:"reply_to_message"`
@@ -42,6 +46,15 @@ func (c *Client) GetUpdates(ctx context.Context, offset int64, timeoutSec int) (
 		"offset": offset, "timeout": timeoutSec, "allowed_updates": []string{"message", "callback_query"},
 	}, &out)
 	return out, err
+}
+
+// BotUsername returns the bot's @username via getMe.
+func (c *Client) BotUsername(ctx context.Context) (string, error) {
+	var me struct {
+		Username string `json:"username"`
+	}
+	err := c.call(ctx, "getMe", struct{}{}, &me)
+	return me.Username, err
 }
 
 // SendText sends a plain message (no markup) to a chat, as a reply when
