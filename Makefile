@@ -17,6 +17,7 @@ GOIMPORTS_VERSION     := v0.51.0
 GOVULNCHECK_VERSION   := v1.8.0
 ACTIONLINT_VERSION    := v1.7.12
 GITLEAKS_VERSION      := v8.30.1
+SQLC_VERSION          := v1.31.1
 HADOLINT_VERSION      := v2.15.1
 HADOLINT_SHA256       := c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
 
@@ -37,6 +38,7 @@ tools: ## install pinned dev tools into bin/tools
 	GOBIN=$(TOOLS) GOTOOLCHAIN=$(GO_TOOLCHAIN) go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	GOBIN=$(TOOLS) GOTOOLCHAIN=$(GO_TOOLCHAIN) go install github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
 	GOBIN=$(TOOLS) GOTOOLCHAIN=$(GO_TOOLCHAIN) go install github.com/zricethezav/gitleaks/v8@$(GITLEAKS_VERSION)
+	GOBIN=$(TOOLS) GOTOOLCHAIN=$(GO_TOOLCHAIN) CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
 	curl -fsSL -o $(TOOLS)/hadolint \
 		https://github.com/hadolint/hadolint/releases/download/$(HADOLINT_VERSION)/hadolint-linux-x86_64
 	echo "$(HADOLINT_SHA256)  $(TOOLS)/hadolint" | sha256sum -c -
@@ -57,16 +59,18 @@ fmt-check: ## fail if any file needs formatting
 	golangci-lint fmt --diff ./...
 
 .PHONY: lint
-lint: ## golangci-lint, file length, go mod tidy, actionlint, hadolint
+lint: ## golangci-lint, file length, go mod tidy, sqlc, actionlint, hadolint
 	golangci-lint run ./...
 	scripts/check-file-length.sh
 	go mod tidy -diff
+	sqlc vet
+	sqlc diff
 	actionlint
 	hadolint Dockerfile
 
 .PHONY: test
 test: ## unit and integration tests with -race and coverage
-	CGO_ENABLED=1 go test -race -covermode=atomic -coverprofile=coverage.out ./...
+	CGO_ENABLED=1 go test -race -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
 
 .PHONY: test-e2e
@@ -85,8 +89,8 @@ sec: ## govulncheck and gitleaks (trivy on the image when installed)
 check: fmt-check lint test sec ## everything to run before a commit
 
 .PHONY: generate
-generate: ## sqlc generate (lands with the storage phase)
-	@if [ -f sqlc.yaml ]; then sqlc generate; else echo "no sqlc.yaml yet"; fi
+generate: ## regenerate sqlc code (commit the result)
+	sqlc generate
 
 .PHONY: build
 build: ## static binary in ./bin/relay

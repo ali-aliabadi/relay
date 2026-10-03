@@ -28,6 +28,12 @@ func serve(ctx context.Context, lookup config.LookupFunc, logOut io.Writer, ln n
 	}
 	logger := obs.NewLogger(logOut, cfg.LogLevel)
 
+	st, conn, err := openStore(ctx, cfg, logger)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+
 	if ln == nil {
 		var lc net.ListenConfig
 		ln, err = lc.Listen(ctx, "tcp", cfg.Addr)
@@ -40,6 +46,7 @@ func serve(ctx context.Context, lookup config.LookupFunc, logOut io.Writer, ln n
 		Handler: api.NewHandler(api.Deps{
 			Logger:       logger,
 			Clock:        time.Now,
+			Health:       st.Ping,
 			MaxBodyBytes: cfg.MaxBodyBytes,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

@@ -17,6 +17,7 @@ const usage = `Usage: relay <command>
 
 Commands:
   serve     run the HTTP API and delivery worker
+  migrate   apply database migrations and exit (serve also does this)
   version   print the version
 `
 
@@ -37,6 +38,12 @@ func run(ctx context.Context, args []string, lookup func(string) (string, bool),
 	case "serve":
 		if err := serve(ctx, lookup, stdout, nil); err != nil {
 			fmt.Fprintf(stderr, "relay serve: %v\n", err)
+			return 1
+		}
+		return 0
+	case "migrate":
+		if err := migrate(ctx, lookup, stdout); err != nil {
+			fmt.Fprintf(stderr, "relay migrate: %v\n", err)
 			return 1
 		}
 		return 0

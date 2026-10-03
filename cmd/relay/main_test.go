@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -76,7 +77,10 @@ func TestServeHealthzAndGracefulShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	logs := &syncBuffer{}
-	env := lookup(map[string]string{"RELAY_ENCRYPTION_KEY": testKey, "RELAY_TELEGRAM_BOT_TOKEN": "fake:token"})
+	dbPath := filepath.Join(t.TempDir(), "relay.db")
+	env := lookup(map[string]string{
+		"RELAY_ENCRYPTION_KEY": testKey, "RELAY_TELEGRAM_BOT_TOKEN": "fake:token", "RELAY_DB_PATH": dbPath,
+	})
 	done := make(chan error, 1)
 	go func() { done <- serve(ctx, env, logs, ln) }()
 
@@ -100,7 +104,7 @@ func TestServeHealthzAndGracefulShutdown(t *testing.T) {
 		t.Fatal("serve did not shut down")
 	}
 	out := logs.String()
-	for _, want := range []string{"relay starting", `"route":"GET /healthz"`, "relay stopped"} {
+	for _, want := range []string{"migrations applied", "relay starting", `"route":"GET /healthz"`, "relay stopped"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("logs missing %q: %s", want, out)
 		}
@@ -111,8 +115,40 @@ func TestServeHealthzAndGracefulShutdown(t *testing.T) {
 }
 
 func TestServeListenError(t *testing.T) {
-	env := lookup(map[string]string{"RELAY_ENCRYPTION_KEY": testKey, "RELAY_ADDR": "256.0.0.1:1"})
+	env := lookup(map[string]string{
+		"RELAY_ENCRYPTION_KEY": testKey, "RELAY_ADDR": "256.0.0.1:1",
+		"RELAY_DB_PATH": filepath.Join(t.TempDir(), "relay.db"),
+	})
 	if err := serve(t.Context(), env, &bytes.Buffer{}, nil); err == nil {
 		t.Fatal("want a listen error")
+	}
+}
+
+func TestServeBadDBPath(t *testing.T) {
+	env := lookup(map[string]string{
+		"RELAY_ENCRYPTION_KEY": testKey,
+		"RELAY_DB_PATH":        filepath.Join(t.TempDir(), "missing", "relay.db"),
+	})
+	if err := serve(t.Context(), env, &bytes.Buffer{}, nil); err == nil {
+		t.Fatal("want a database error")
+	}
+}
+
+func TestMigrateCommand(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "relay.db")
+	env := lookup(map[string]string{"RELAY_ENCRYPTION_KEY": testKey, "RELAY_DB_PATH": dbPath})
+	var stdout, stderr bytes.Buffer
+	if code := run(t.Context(), []string{"migrate"}, env, &stdout, &stderr); code != 0 {
+		t.Fatalf("code = %d, stderr %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "migrations applied") {
+		t.Errorf("first run should apply migrations: %s", stdout.String())
+	}
+	stdout.Reset()
+	if code := run(t.Context(), []string{"migrate"}, env, &stdout, &stderr); code != 0 || stdout.Len() != 0 {
+		t.Errorf("second run = %d, logged %q; want 0 and quiet", code, stdout.String())
+	}
+	if code := run(t.Context(), []string{"migrate"}, lookup(nil), &stdout, &stderr); code != 1 {
+		t.Errorf("migrate without key = %d, want 1", code)
 	}
 }

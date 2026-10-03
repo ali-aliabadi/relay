@@ -33,12 +33,12 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 2: storage and privacy foundations
 
-- [ ] SQLite open helper (WAL, foreign keys, busy timeout) and goose migrations embedded + run on startup
-- [ ] Initial migration: `clients`, `recipients`, `contacts`, `messages`, `attachments`, `deliveries`
-- [ ] sqlc config and queries for each table; `make generate`; `sqlc vet` in lint
-- [ ] `internal/crypto`: AES-256-GCM field encryption with key-version prefix, tests incl. tamper detection
-- [ ] Store layer encrypts/decrypts private columns transparently; test that raw DB rows contain no plaintext
-- [ ] Prefixed ULID helper
+- [x] SQLite open helper (WAL, foreign keys, busy timeout) and goose migrations embedded + run on startup
+- [x] Initial migration: `clients`, `recipients`, `contacts`, `messages`, `attachments`, `deliveries`
+- [x] sqlc config and queries for each table; `make generate`; `sqlc vet` in lint
+- [x] `internal/crypto`: AES-256-GCM field encryption with key-version prefix, tests incl. tamper detection
+- [x] Store layer encrypts/decrypts private columns transparently; test that raw DB rows contain no plaintext
+- [x] Prefixed ULID helper
 
 ## Phase 3: admin CLI and auth
 
