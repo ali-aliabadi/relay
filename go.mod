@@ -3,7 +3,7 @@ module github.com/ali-aliabadi/relay
 go 1.27.1
 
 require (
-	github.com/moby/moby/api v1.55.0
+	github.com/moby/moby/api v1.56.0
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/testcontainers/testcontainers-go v0.44.0
