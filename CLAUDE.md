@@ -42,6 +42,7 @@ scripts/              check-file-length.sh and other repo checks
 deploy/               docker-compose.yml (copied to the VPS by CD), nginx-relay.conf (installed by hand)
 .github/workflows/    ci.yml, deploy.yml
 .claude/skills/       project skills (relay-security-review)
+skills/relay-notify/  skill for agents in *other* apps that call Relay; copied into their repos
 ```
 
 ## Commands
@@ -121,7 +122,7 @@ Three levels, all required for new behaviour:
 ## Working agreement
 
 - Branch from `master`, open a PR; merging to `master` **deploys to production**.
-- Keep docs in sync in the same PR: tick boxes in docs/ROADMAP.md, update docs/ARCHITECTURE.md if the design changed, README.md if usage changed.
+- Keep docs in sync in the same PR: tick boxes in docs/ROADMAP.md, update docs/ARCHITECTURE.md if the design changed, README.md if usage changed, and `skills/relay-notify/SKILL.md` if anything an API caller sees changed (fields, limits, errors, behaviour).
 - Small PRs, one roadmap item (or a few tightly related ones) each.
 - If a design question isn't answered in docs/ARCHITECTURE.md, ask ali rather than guessing on anything user-visible.
 
