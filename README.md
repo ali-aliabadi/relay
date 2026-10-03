@@ -66,6 +66,14 @@ Then poll (or fetch on the webhook) `GET /v1/messages/{id}/answers`:
 Each recipient answers separately and can change their answer until the app
 fetches it; after that it's final.
 
+## Using Relay from your apps' AI agents
+
+[`skills/relay-notify/SKILL.md`](skills/relay-notify/SKILL.md) teaches an agent
+the whole API: who to send to (`admin` when unsure), urgency, blocks, asking
+questions and reading answers, retries and privacy. Copy the folder into the
+other app's `.claude/skills/` and give that app `RELAY_URL` and its own
+`RELAY_API_KEY` (`relay clients create <app-name>`).
+
 ## How it works
 
 ```
