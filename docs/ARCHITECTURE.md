@@ -106,6 +106,9 @@ deliveries       id, message_id, recipient_id, channel, status
                  provider_message_id, last_error, created_at, updated_at
 answers          message_id, recipient_id, answer, answered_at, fetched_at NULL
                  PRIMARY KEY (message_id, recipient_id)
+invites          recipient_id, channel, handle (Telegram username), created_at
+                 PRIMARY KEY (recipient_id, channel)
+aliases          name (PK), recipient_id, created_at
 ```
 
 Tables are SQLite `STRICT`. Times are stored as UTC text in a fixed-width format
@@ -113,7 +116,7 @@ Tables are SQLite `STRICT`. Times are stored as UTC text in a fixed-width format
 cascades to its contacts and deliveries.
 
 Private columns (`messages.title`, `messages.blocks`, `attachments.bytes`,
-`contacts.address`, `answers.answer`) are stored encrypted (see Privacy and security).
+`contacts.address`, `answers.answer`, `invites.handle`) are stored encrypted (see Privacy and security).
 
 An answer can be replaced while `fetched_at` is NULL. The first
 `GET /v1/messages/{id}/answers` that returns it sets `fetched_at`, and from then
@@ -162,10 +165,11 @@ Errors use one shape: `{"error": {"code": "invalid_request", "message": "..."}}`
 - Validation failures are `422` with `{"error": {"code": "invalid_request", "message": "...", "problems": ["to[1]: unknown recipient", ...]}}`. Problems name field paths and rules, never the caller's values (not even usernames).
 - Malformed JSON, unknown fields or trailing data are `400 invalid_json`; a body over `RELAY_MAX_BODY_BYTES` is `413 too_large`.
 - A recipient must have a linked contact on a configured channel, otherwise `to[i]: recipient has no linked channel to send on`.
+- Every name in `to` is a username or an **alias** (another name for a recipient, e.g. `admin` → `ali`, managed with `relay recipients alias|unalias`). Names that reach the same person collapse into one delivery, so `["admin", "ali"]` sends once. Aliases and usernames share one namespace, so a name always means exactly one person. Answers report the real username.
 - `GET /v1/messages/{id}/answers` returns `{"answers": [{"recipient": "<username>", "answer", "answered_at"}]}`, one per recipient who answered (empty while waiting). It is the only endpoint that returns content, because the asking app is its source. Another client's message is `404`; answers are deleted with the content at retention.
 - `GET /v1/messages/{id}` returns metadata only (`id`, `status`, `urgency`, `source`, `request_id`, `created_at`, `redacted`) plus `deliveries` (`id`, `recipient_id`, `channel`, `status`, `attempts`, `next_attempt_at`, `last_error`, `updated_at`). Content is never returned. Another client's message is `404`.
 - `GET /v1/messages?status=&since=<RFC 3339>&limit=1-100&cursor=` returns `{"messages": [...], "next_cursor": "msg_..."}`, newest first; `next_cursor` is present when the page is full.
-- Recipients: `POST` takes `username`, `display_name`, optional `timezone` (IANA, default `UTC`) and `channel_preference` (default `["telegram"]`); `PUT` replaces `display_name`, `timezone` and `channel_preference`. Responses add `linked_channels` (channel names only, never addresses) and `created_at`.
+- Recipients: `POST` takes `username`, `display_name`, optional `timezone` (IANA, default `UTC`) and `channel_preference` (default `["telegram"]`); `PUT` replaces `display_name`, `timezone` and `channel_preference`. Responses add `aliases`, `linked_channels` (channel names only, never addresses) and `created_at`. A username already taken by an alias is `409`. Recipients are addressed by username in these routes; aliases are for `to`.
 - Inline images are moved out of the blocks into `attachments`; the stored image block keeps an `attachment` index instead of the base64.
 
 ### Message format
@@ -216,9 +220,22 @@ falls back to its plain-text form (e.g. a table as aligned text for SMS).
 ## Telegram setup
 
 1. Create a bot with @BotFather; put the token in `RELAY_TELEGRAM_BOT_TOKEN`.
-2. Add a recipient: `relay recipients add ali --name "Ali"`.
-3. With `relay serve` running, that person sends `/start` to the bot. The bot replies with a link code: the chat ID encrypted with `RELAY_ENCRYPTION_KEY`, valid for an hour, so it reveals nothing and can't be forged.
-4. Run `relay recipients link ali <code>`. It stores the chat as a verified contact and sends a confirmation.
+2. Add a recipient: `relay recipients add sara --name "Sara"`.
+3. Invite their Telegram account: `relay recipients link sara @sara_tg`. It prints the bot's `t.me` link.
+4. They open the bot and tap Start (with `relay serve` running). The bot sees `/start` from `@sara_tg`, links that chat as a verified contact and replies "Linked to Relay as Sara."
+
+Why this is trustworthy: the sender's username in a Telegram update is set by
+Telegram's servers, so nobody can send `/start` *as* `@sara_tg`. Only private
+chats count. An invite is used once, expires after 7 days (bounding the time
+in which a released username could be re-registered by someone else), and one
+username can't be invited for two people at once. An existing link keeps
+working until the new invite is claimed. Invites are stored encrypted and
+expired ones are deleted by the retention job.
+
+Fallback for accounts without a Telegram username: their `/start` gets a link
+code (the chat ID encrypted with `RELAY_ENCRYPTION_KEY`, valid for an hour, so
+it reveals nothing and can't be forged), and `relay recipients link sara <code>`
+links it.
 
 ### Answers
 
@@ -255,7 +272,7 @@ leaked API key, a leaked DB file or backup, logs shipped somewhere, a malicious
 payload (markup injection, oversized or fake images), and a compromised dependency.
 
 - **Encryption at rest:** private columns are encrypted with AES-256-GCM (random nonce per value, key version byte prefix for future rotation). The column and row ID are bound in as associated data, so a ciphertext copied to another row fails to decrypt. Search never needs these columns.
-- **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days.
+- **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days; expired invites are deleted.
 - **Transport:** HTTPS only: Cloudflare terminates public TLS and reaches nginx over TLS (SSL mode Full). Relay listens on the host's loopback only.
 - **Auth:** per-client API keys (`rk_` + 32 random bytes), SHA-256 hashed, constant-time compare, revocable. Failed auth is rate-limited per IP: 10 failures in 10 minutes and that IP gets `429` with `Retry-After` until the window ends. Counts live in memory only and IPs are never logged.
 - **Input handling:** body size limit, strict JSON decoding, block limits, every value HTML-escaped by the Telegram layout, `link`/`image`/`webhook` URLs restricted to `https`, inline images type-checked by magic bytes. Relay fetches no URLs itself (Telegram fetches image URLs) except question webhooks, which carry no content and may only reach public addresses.
@@ -319,5 +336,5 @@ See the "Later" section of docs/ROADMAP.md. Design notes for the big ones:
 - **SMS**: another `Channel` package; makes `high` fallback meaningful. Provider undecided.
 - **Quiet hours / digests**: recipient `quiet_hours` + `timezone`; the worker sets `next_attempt_at` to the end of quiet hours for `low`/`normal`.
 - **Telegram acks**: a `question` with one "Got it" option covers the ack; unacked `critical` messages escalating is still to do.
-- **Self sign-up by username**: recipient sends `/start <username>` to the bot, admin approves.
+- **Self sign-up**: anyone could ask to join via the bot and the admin approves. Today the admin invites by Telegram username instead, which covers two people.
 - **MCP server**: exposes `send_message` so Claude and other agents can notify through Relay.

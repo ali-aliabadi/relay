@@ -48,6 +48,24 @@ func (q *Queries) DeleteRecipient(ctx context.Context, username string) (int64, 
 	return result.RowsAffected()
 }
 
+const getRecipientByID = `-- name: GetRecipientByID :one
+SELECT id, username, display_name, timezone, channel_preference, created_at FROM recipients WHERE id = ?
+`
+
+func (q *Queries) GetRecipientByID(ctx context.Context, id string) (Recipient, error) {
+	row := q.db.QueryRowContext(ctx, getRecipientByID, id)
+	var i Recipient
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.DisplayName,
+		&i.Timezone,
+		&i.ChannelPreference,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getRecipientByUsername = `-- name: GetRecipientByUsername :one
 SELECT id, username, display_name, timezone, channel_preference, created_at FROM recipients WHERE username = ?
 `

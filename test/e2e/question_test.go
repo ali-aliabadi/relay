@@ -19,7 +19,7 @@ func (s *stack) question(text string) fakeCall {
 	s.t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		for _, c := range s.calls("sendMessage") {
+		for _, c := range s.sentMessages() {
 			if strings.Contains(fmt.Sprint(c.Params["text"]), text) {
 				return c
 			}
@@ -59,11 +59,16 @@ func TestQuestionEndToEnd(t *testing.T) {
 		t.Fatalf("create recipient = %d %v", code, body)
 	}
 	s.link("ali")
+	s.exec("recipients", "alias", "ali", "admin")
 
-	_, created := s.api(http.MethodPost, "/v1/messages", `{"to":["ali"],"blocks":[
+	// Sent to the alias (and the username: still one delivery); answered as ali.
+	_, created := s.api(http.MethodPost, "/v1/messages", `{"to":["admin","ali"],"blocks":[
 		{"type":"question","text":"Ship v2?","options":["Yes","No"]}]}`)
 	buttonsID, _ := created["id"].(string)
 	sent := s.question("Ship v2?")
+	if msg := s.waitStatus(buttonsID, "delivered", 15*time.Second); len(msg["deliveries"].([]any)) != 1 {
+		t.Fatalf("deliveries = %v; want one for admin + ali", msg["deliveries"])
+	}
 	rows := sent.Params["reply_markup"].(map[string]any)["inline_keyboard"].([]any)
 	data := rows[1].([]any)[0].(map[string]any)["callback_data"].(string)
 	s.control(http.MethodPost, fmt.Sprintf("/_tap?chat_id=%s&message_id=%d&data=%s", fakeChatID, sent.MessageID, url.QueryEscape(data)), "")

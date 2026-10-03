@@ -42,17 +42,21 @@ func (r *Retention) Run(ctx context.Context) {
 func (r *Retention) Pass(ctx context.Context) {
 	now := r.Clock()
 	res, err := r.Store.Purge(ctx, now.Add(-time.Duration(r.Days)*24*time.Hour), now.Add(-MetadataRetention))
+	if err == nil {
+		res.InvitesDeleted, err = r.Store.DeleteInvitesBefore(ctx, now.Add(-InviteTTL))
+	}
 	if err != nil {
 		if ctx.Err() == nil {
 			r.Logger.Error("retention pass failed", slog.String("error", err.Error()))
 		}
 		return
 	}
-	if res.Redacted+res.AttachmentsDeleted+res.AnswersDeleted+res.MessagesDeleted > 0 {
+	if res.Redacted+res.AttachmentsDeleted+res.AnswersDeleted+res.MessagesDeleted+res.InvitesDeleted > 0 {
 		r.Logger.Info("retention purge",
 			slog.Int64("messages_redacted", res.Redacted),
 			slog.Int64("attachments_deleted", res.AttachmentsDeleted),
 			slog.Int64("answers_deleted", res.AnswersDeleted),
+			slog.Int64("invites_deleted", res.InvitesDeleted),
 			slog.Int64("messages_deleted", res.MessagesDeleted))
 	}
 }

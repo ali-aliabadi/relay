@@ -86,6 +86,11 @@ should be one small PR unless noted. Design details are in
 - [x] Telegram poller in `serve`: button taps, replies, `/start` link codes
 - [x] `GET /v1/messages/{id}/answers`; answers changeable until fetched, encrypted, purged at retention
 
+## Phase 8: easier linking and names
+
+- [x] `relay recipients link <user> @telegram_username`: they tap Start, the bot links them (codes stay as the fallback)
+- [x] Aliases: `relay recipients alias ali admin`; any alias works in `to`, one delivery per person
+
 ## Later
 
 Roughly in priority order; promote items into a phase when starting them.
@@ -98,7 +103,7 @@ Roughly in priority order; promote items into a phase when starting them.
 - [ ] Unanswered `critical` questions escalate (the "Got it" ack itself is a one-option `question`)
 - [ ] Email (SMTP) channel
 - [ ] Push channel (ntfy or similar)
-- [ ] Self sign-up by username via the bot (`/start <username>`, admin approves)
+- [ ] Self sign-up via the bot with admin approval (only if more than a couple of people need it)
 - [ ] Delivery-status webhooks back to the calling app
 - [ ] Per-client rate limits
 - [ ] Go client package and a `relay send` CLI usable from other machines

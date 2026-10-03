@@ -8,6 +8,12 @@ import (
 	"database/sql"
 )
 
+type Alias struct {
+	Name        string
+	RecipientID string
+	CreatedAt   string
+}
+
 type Answer struct {
 	MessageID   string
 	RecipientID string
@@ -51,6 +57,13 @@ type Delivery struct {
 	LastError         sql.NullString
 	CreatedAt         string
 	UpdatedAt         string
+}
+
+type Invite struct {
+	RecipientID string
+	Channel     string
+	Handle      []byte
+	CreatedAt   string
 }
 
 type Message struct {

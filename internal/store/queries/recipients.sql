@@ -16,3 +16,6 @@ UPDATE recipients SET display_name = ?, timezone = ?, channel_preference = ? WHE
 
 -- name: DeleteRecipient :execrows
 DELETE FROM recipients WHERE username = ?;
+
+-- name: GetRecipientByID :one
+SELECT * FROM recipients WHERE id = ?;

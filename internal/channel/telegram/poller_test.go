@@ -20,13 +20,16 @@ import (
 
 // pollerRig runs a Poller against the fake Bot API and records answers.
 type pollerRig struct {
-	bot     *telegramtest.Server
-	logs    *syncBuf
-	mu      sync.Mutex
-	answers []channel.Answer
-	result  channel.AnswerResult
-	err     error
-	codes   []string
+	bot      *telegramtest.Server
+	logs     *syncBuf
+	mu       sync.Mutex
+	answers  []channel.Answer
+	result   channel.AnswerResult
+	err      error
+	codes    []string
+	claims   []string          // "username chat"
+	invited  map[string]string // username → display name
+	claimErr error
 }
 
 type syncBuf struct {
@@ -68,6 +71,13 @@ func startPoller(t *testing.T, wrap func(http.Handler) http.Handler) *pollerRig 
 			defer r.mu.Unlock()
 			r.codes = append(r.codes, chatID)
 			return "CODE-" + chatID, nil
+		},
+		ClaimInvite: func(_ context.Context, username, chatID string) (string, bool, error) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.claims = append(r.claims, username+" "+chatID)
+			name, ok := r.invited[username]
+			return name, ok, r.claimErr
 		},
 		Logger:  obs.NewLogger(r.logs, slog.LevelInfo),
 		Backoff: 10 * time.Millisecond,
@@ -245,8 +255,50 @@ func TestPollerStartSendsLinkCode(t *testing.T) {
 	if got["chat_id"] != float64(42) || !strings.Contains(got["text"].(string), "relay recipients link <your username> CODE-42") {
 		t.Errorf("start reply = %v", got)
 	}
-	if len(r.got()) != 0 || len(r.codes) != 1 {
-		t.Errorf("answers %v, codes %v", r.got(), r.codes)
+	if len(r.got()) != 0 || len(r.codes) != 1 || len(r.claims) != 0 {
+		t.Errorf("answers %v, codes %v, claims %v (no username: nothing to claim)", r.got(), r.codes, r.claims)
+	}
+}
+
+func TestPollerStartClaimsInvite(t *testing.T) {
+	r := startPoller(t, nil)
+	r.mu.Lock()
+	r.invited = map[string]string{"Sara_TG": "Sara"}
+	r.mu.Unlock()
+	r.bot.AddStartFrom(42, "Sara_TG")
+	got := r.await(t, "sendMessage", 1)[0].Params
+	if got["chat_id"] != float64(42) || got["text"] != "Linked to Relay as Sara. Notifications will arrive here." {
+		t.Errorf("reply = %v", got)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.claims) != 1 || r.claims[0] != "Sara_TG 42" || len(r.codes) != 0 {
+		t.Errorf("claims %v, codes %v", r.claims, r.codes)
+	}
+}
+
+func TestPollerStartWithoutInviteFallsBackToCode(t *testing.T) {
+	r := startPoller(t, nil)
+	r.bot.AddStartFrom(42, "stranger")
+	got := r.await(t, "sendMessage", 1)[0].Params
+	if !strings.Contains(got["text"].(string), "CODE-42") {
+		t.Errorf("reply = %v", got)
+	}
+}
+
+func TestPollerStartClaimErrorSendsNoCode(t *testing.T) {
+	r := startPoller(t, nil)
+	r.mu.Lock()
+	r.claimErr = errors.New("db locked")
+	r.mu.Unlock()
+	r.bot.AddStartFrom(42, "sara_tg")
+	got := r.await(t, "sendMessage", 1)[0].Params
+	if !strings.Contains(got["text"].(string), "try again") || strings.Contains(got["text"].(string), "CODE") {
+		t.Errorf("reply = %v", got)
+	}
+	waitLogs(t, r.logs, 1)
+	if strings.Contains(r.logs.String(), "sara_tg") {
+		t.Errorf("logs contain the username: %s", r.logs.String())
 	}
 }
 

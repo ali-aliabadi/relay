@@ -130,7 +130,7 @@ func (s *stack) control(method, path, body string) []byte {
 func (s *stack) sends() int {
 	s.t.Helper()
 	n := 0
-	for _, c := range s.calls("sendMessage") {
+	for _, c := range s.sentMessages() {
 		if fmt.Sprint(c.Params["chat_id"]) == fakeChatID {
 			n++
 		}
@@ -147,7 +147,7 @@ func (s *stack) link(username string) {
 	var code string
 	deadline := time.Now().Add(30 * time.Second)
 	for code == "" {
-		for _, c := range s.calls("sendMessage") {
+		for _, c := range s.sentMessages() {
 			if m := codeRe.FindStringSubmatch(fmt.Sprint(c.Params["text"])); m != nil && fmt.Sprint(c.Params["chat_id"]) == fakeChatID {
 				code = m[1]
 			}
@@ -162,16 +162,38 @@ func (s *stack) link(username string) {
 	}
 }
 
+// invite links username by Telegram username: the admin invites, the "user"
+// taps Start, and the bot confirms. No code changes hands.
+func (s *stack) invite(username, tgUsername string) {
+	s.t.Helper()
+	if out := s.exec("recipients", "link", username, "@"+tgUsername); !strings.Contains(out, "Invited "+username) {
+		s.t.Fatalf("invite: %s", out)
+	}
+	s.control(http.MethodPost, "/_reply?chat_id="+fakeChatID+"&text=/start&username="+tgUsername, "")
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		for _, c := range s.sentMessages() {
+			if strings.HasPrefix(fmt.Sprint(c.Params["text"]), "Linked to Relay as ") && fmt.Sprint(c.Params["chat_id"]) == fakeChatID {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			s.t.Fatal("the bot never confirmed the invite")
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
 type fakeCall struct {
 	Params    map[string]any `json:"params"`
 	MessageID int64          `json:"message_id"`
 }
 
-// calls returns the fake's recorded calls for method.
-func (s *stack) calls(method string) []fakeCall {
+// sentMessages returns the fake's recorded sendMessage calls.
+func (s *stack) sentMessages() []fakeCall {
 	s.t.Helper()
 	var calls []fakeCall
-	if err := json.Unmarshal(s.control(http.MethodGet, "/_calls?method="+method, ""), &calls); err != nil {
+	if err := json.Unmarshal(s.control(http.MethodGet, "/_calls?method=sendMessage", ""), &calls); err != nil {
 		s.t.Fatal(err)
 	}
 	return calls
@@ -200,8 +222,8 @@ func TestTelegramDeliveryEndToEnd(t *testing.T) {
 	if code, body := s.api(http.MethodPost, "/v1/recipients", `{"username":"ali","display_name":"Ali"}`); code != http.StatusCreated {
 		t.Fatalf("create recipient = %d %v", code, body)
 	}
-	s.link("ali")
-	linked := s.sends() // link sends a confirmation to the chat
+	s.invite("ali", "ali_e2e")
+	linked := s.sends() // the bot confirms the link in the chat
 
 	// Delivery, sent once even when the same idempotency key is posted twice.
 	body := `{"to":["ali"],"title":"Backup","text":"done <ok>","idempotency_key":"e2e-1"}`
@@ -245,7 +267,7 @@ func TestTelegramDeliveryEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, _ := io.ReadAll(logs)
-	for _, secret := range []string{"Backup", "done <ok>", "retry me", fakeToken, `"` + fakeChatID + `"`} {
+	for _, secret := range []string{"Backup", "done <ok>", "retry me", "ali_e2e", fakeToken, `"` + fakeChatID + `"`} {
 		if bytes.Contains(out, []byte(secret)) {
 			t.Errorf("container logs contain %q", secret)
 		}
