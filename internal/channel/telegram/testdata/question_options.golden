@@ -1,0 +1,20 @@
+[
+  {
+    "kind": "text",
+    "text": "<b>Deploy</b>\n\nv2 passed staging.\n\n❓ <b>Ship &lt;v2&gt; to prod?</b>\n\n<i>via ci</i>",
+    "buttons": [
+      {
+        "text": "Yes",
+        "data": "a:dlv_TEST:0"
+      },
+      {
+        "text": "No & wait",
+        "data": "a:dlv_TEST:1"
+      },
+      {
+        "text": "Diff",
+        "url": "https://git.example/diff"
+      }
+    ]
+  }
+]

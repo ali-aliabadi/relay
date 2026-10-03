@@ -20,4 +20,6 @@ const (
 	MaxLinkTextLen    = 64
 	MaxURLLen         = 2048
 	MaxIdempotencyLen = 128
+	MaxOptions        = 10
+	MaxOptionLen      = 64
 )

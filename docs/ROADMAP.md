@@ -63,7 +63,7 @@ should be one small PR unless noted. Design details are in
 - [x] Telegram layout: every block type to HTML/`sendPhoto`/inline buttons, escaping, length limits, golden tests
 - [x] `POST /v1/preview` (uses each channel's `Preview`) and `GET /v1/channels`
 - [x] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
-- [x] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
+- [x] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id (now `link <username> <code>`, code from the bot)
 - [x] `relay send` for manual test messages
 - [x] Retention job: purge content after `RELAY_RETENTION_DAYS`, delete metadata after 180 days
 - [x] Metrics on the internal listener (`/metrics`, optional pprof) with the metric set from ARCHITECTURE
@@ -80,6 +80,12 @@ should be one small PR unless noted. Design details are in
 - [ ] First production deploy; register ali and ali's wife; send a real message to each
 - [ ] README "Running locally" verified against reality
 
+## Phase 7: answers
+
+- [x] `question` block (options as buttons, or a typed reply) with an optional answer webhook
+- [x] Telegram poller in `serve`: button taps, replies, `/start` link codes
+- [x] `GET /v1/messages/{id}/answers`; answers changeable until fetched, encrypted, purged at retention
+
 ## Later
 
 Roughly in priority order; promote items into a phase when starting them.
@@ -89,7 +95,7 @@ Roughly in priority order; promote items into a phase when starting them.
 - [ ] Daily digest for `low` messages
 - [ ] Scheduled / delayed sends (`send_at`)
 - [ ] SMS channel (pick a provider first) and real `high` fallback Telegram → SMS
-- [ ] Telegram webhook + "Got it" ack button; unacked `critical` escalates
+- [ ] Unanswered `critical` questions escalate (the "Got it" ack itself is a one-option `question`)
 - [ ] Email (SMTP) channel
 - [ ] Push channel (ntfy or similar)
 - [ ] Self sign-up by username via the bot (`/start <username>`, admin approves)

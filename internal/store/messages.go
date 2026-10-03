@@ -192,3 +192,12 @@ func (s *Store) messageFromRow(r db.Message) (Message, error) {
 		Status: r.Status, CreatedAt: created, RedactedAt: redacted,
 	}, nil
 }
+
+// MessageByID returns any client's message, without attachments.
+func (s *Store) MessageByID(ctx context.Context, messageID string) (Message, error) {
+	row, err := s.q.GetMessageByID(ctx, messageID)
+	if err != nil {
+		return Message{}, fmt.Errorf("getting message: %w", mapErr(err))
+	}
+	return s.messageFromRow(row)
+}

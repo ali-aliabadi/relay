@@ -48,14 +48,15 @@ type Part struct {
 	Kind                string   `json:"kind"`              // "text" or "photo"
 	Text                string   `json:"text,omitempty"`    // rendered markup (the caption for photos)
 	Photo               string   `json:"photo,omitempty"`   // https URL, or "inline" for uploaded bytes
-	Buttons             []Button `json:"buttons,omitempty"` // link buttons under this part
+	Buttons             []Button `json:"buttons,omitempty"` // buttons under this part
 	DisableNotification bool     `json:"disable_notification,omitempty"`
 }
 
-// Button is a link button.
+// Button is a link button (URL) or an answer button (Data, sent back by the provider).
 type Button struct {
 	Text string `json:"text"`
-	URL  string `json:"url"`
+	URL  string `json:"url,omitempty"`
+	Data string `json:"data,omitempty"`
 }
 
 // Error is a failed send. Reason is short, safe to store and show (no

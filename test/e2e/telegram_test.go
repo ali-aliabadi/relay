@@ -129,14 +129,8 @@ func (s *stack) control(method, path, body string) []byte {
 // sends counts sendMessage calls the fake received for the test chat.
 func (s *stack) sends() int {
 	s.t.Helper()
-	var calls []struct {
-		Params map[string]any `json:"params"`
-	}
-	if err := json.Unmarshal(s.control(http.MethodGet, "/_calls?method=sendMessage", ""), &calls); err != nil {
-		s.t.Fatal(err)
-	}
 	n := 0
-	for _, c := range calls {
+	for _, c := range s.calls("sendMessage") {
 		if fmt.Sprint(c.Params["chat_id"]) == fakeChatID {
 			n++
 		}
@@ -144,39 +138,43 @@ func (s *stack) sends() int {
 	return n
 }
 
-// link runs `relay recipients link --yes` while the "user" keeps sending /start.
+// link sends /start from the test chat, reads the code the bot replies with
+// and runs `relay recipients link` with it while the server is running.
 func (s *stack) link(username string) {
 	s.t.Helper()
-	done := make(chan string, 1)
-	go func() {
-		code, r, err := s.relay.Exec(s.t.Context(),
-			[]string{"/usr/local/bin/relay", "recipients", "link", username, "--yes"}, exec.Multiplexed())
-		out, _ := io.ReadAll(r)
-		if err != nil || code != 0 {
-			done <- "failed: " + string(out)
-			return
-		}
-		done <- string(out)
-	}()
-	tick := time.NewTicker(300 * time.Millisecond)
-	defer tick.Stop()
-	deadline := time.After(time.Minute)
-	for {
-		select {
-		case out := <-done:
-			if strings.HasPrefix(out, "failed: ") {
-				s.t.Fatalf("link %s", out)
+	s.control(http.MethodPost, "/_reply?chat_id="+fakeChatID+"&text=/start", "")
+	codeRe := regexp.MustCompile(`relay recipients link <your username> (\S+)`)
+	var code string
+	deadline := time.Now().Add(30 * time.Second)
+	for code == "" {
+		for _, c := range s.calls("sendMessage") {
+			if m := codeRe.FindStringSubmatch(fmt.Sprint(c.Params["text"])); m != nil && fmt.Sprint(c.Params["chat_id"]) == fakeChatID {
+				code = m[1]
 			}
-			if strings.Contains(out, fakeChatID) {
-				s.t.Errorf("link output prints the chat ID: %s", out)
-			}
-			return
-		case <-tick.C:
-			s.control(http.MethodPost, "/_start?chat_id="+fakeChatID+"&name=Ali&username=ali_e2e", "")
-		case <-deadline:
-			s.t.Fatal("link did not finish")
 		}
+		if time.Now().After(deadline) {
+			s.t.Fatal("the bot never replied to /start with a link code")
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
+	if out := s.exec("recipients", "link", username, code); strings.Contains(out, fakeChatID) {
+		s.t.Errorf("link output prints the chat ID: %s", out)
+	}
+}
+
+type fakeCall struct {
+	Params    map[string]any `json:"params"`
+	MessageID int64          `json:"message_id"`
+}
+
+// calls returns the fake's recorded calls for method.
+func (s *stack) calls(method string) []fakeCall {
+	s.t.Helper()
+	var calls []fakeCall
+	if err := json.Unmarshal(s.control(http.MethodGet, "/_calls?method="+method, ""), &calls); err != nil {
+		s.t.Fatal(err)
+	}
+	return calls
 }
 
 // waitStatus polls a message until it reaches want.

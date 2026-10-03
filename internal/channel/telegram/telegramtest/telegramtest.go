@@ -20,6 +20,8 @@ type Call struct {
 	Params map[string]any    `json:"params,omitempty"` // JSON requests
 	Form   map[string]string `json:"form,omitempty"`   // multipart requests
 	File   int               `json:"file_bytes,omitempty"`
+	// MessageID is what a successful sendMessage/sendPhoto returned.
+	MessageID int64 `json:"message_id,omitempty"`
 }
 
 // Failure is a canned error response.
@@ -50,15 +52,37 @@ func (s *Server) FailNext(f ...Failure) {
 	s.fails = append(s.fails, f...)
 }
 
-// AddStart queues a private "/start" message from a user for getUpdates.
-func (s *Server) AddStart(chatID int64, firstName, username string) {
+// AddStart queues a private "/start" message from a chat for getUpdates.
+func (s *Server) AddStart(chatID int64) { s.AddReply(chatID, 0, "/start") }
+
+// AddReply queues a private text message, replying to message replyTo when
+// it is not zero.
+func (s *Server) AddReply(chatID, replyTo int64, text string) {
+	m := map[string]any{"message_id": 9000 + len(s.Calls("")), "text": text, "chat": privateChat(chatID)}
+	if replyTo != 0 {
+		m["reply_to_message"] = map[string]any{"message_id": replyTo}
+	}
+	s.addUpdate("message", m)
+}
+
+// AddTap queues a tap on a button with callback data on message messageID.
+func (s *Server) AddTap(chatID, messageID int64, data string, markup any) {
+	s.addUpdate("callback_query", map[string]any{"id": "cb" + strconv.Itoa(len(s.Calls(""))), "data": data, "message": map[string]any{
+		"message_id": messageID, "chat": privateChat(chatID), "reply_markup": markup,
+	}})
+}
+
+// AddGroupMessage queues a message in a group chat, which Relay ignores.
+func (s *Server) AddGroupMessage(chatID int64, text string) {
+	s.addUpdate("message", map[string]any{"message_id": 1, "text": text, "chat": map[string]any{"id": chatID, "type": "group"}})
+}
+
+func privateChat(id int64) map[string]any { return map[string]any{"id": id, "type": "private"} }
+
+func (s *Server) addUpdate(kind string, v any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := len(s.updates) + 1
-	u, _ := json.Marshal(map[string]any{"update_id": id, "message": map[string]any{
-		"text": "/start", "chat": map[string]any{"id": chatID, "type": "private"},
-		"from": map[string]any{"first_name": firstName, "username": username},
-	}})
+	u, _ := json.Marshal(map[string]any{"update_id": len(s.updates) + 1, kind: v})
 	s.updates = append(s.updates, u)
 }
 
@@ -76,7 +100,7 @@ func (s *Server) Calls(method string) []Call {
 }
 
 // ServeHTTP implements the Bot API paths (/bot<token>/<method>) plus control
-// endpoints for the e2e suite: GET /_calls, POST /_fail, POST /_start.
+// endpoints for the e2e suite: GET /_calls, POST /_fail, POST /_reply, POST /_tap.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/_") {
 		s.control(w, r)
@@ -91,6 +115,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	call := decodeCall(r, token, method)
 	s.mu.Lock()
 	s.calls = append(s.calls, call)
+	idx := len(s.calls) - 1
 	s.mu.Unlock()
 	if token != s.Token {
 		reply(w, http.StatusUnauthorized, Failure{Status: 401, Desc: "Unauthorized"}, nil)
@@ -106,13 +131,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(w, http.StatusOK, Failure{}, ups)
 	case "sendMessage", "sendPhoto":
-		s.send(w)
+		s.send(w, idx)
+	case "answerCallbackQuery", "editMessageReplyMarkup":
+		reply(w, http.StatusOK, Failure{}, true)
 	default:
 		reply(w, http.StatusNotFound, Failure{Status: 404, Desc: "Not Found: method not found"}, nil)
 	}
 }
 
-func (s *Server) send(w http.ResponseWriter) {
+func (s *Server) send(w http.ResponseWriter, idx int) {
 	s.mu.Lock()
 	if len(s.fails) > 0 {
 		f := s.fails[0]
@@ -123,6 +150,7 @@ func (s *Server) send(w http.ResponseWriter) {
 	}
 	s.nextID++
 	id := s.nextID
+	s.calls[idx].MessageID = id
 	s.mu.Unlock()
 	reply(w, http.StatusOK, Failure{}, map[string]any{"message_id": id})
 }
@@ -156,9 +184,16 @@ func (s *Server) control(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.FailNext(f...)
-	case "/_start":
-		id, _ := strconv.ParseInt(r.URL.Query().Get("chat_id"), 10, 64)
-		s.AddStart(id, r.URL.Query().Get("name"), r.URL.Query().Get("username"))
+	case "/_reply":
+		q := r.URL.Query()
+		chat, _ := strconv.ParseInt(q.Get("chat_id"), 10, 64)
+		to, _ := strconv.ParseInt(q.Get("reply_to"), 10, 64)
+		s.AddReply(chat, to, q.Get("text"))
+	case "/_tap":
+		q := r.URL.Query()
+		chat, _ := strconv.ParseInt(q.Get("chat_id"), 10, 64)
+		msg, _ := strconv.ParseInt(q.Get("message_id"), 10, 64)
+		s.AddTap(chat, msg, q.Get("data"), nil)
 	case "/_health":
 	default:
 		http.NotFound(w, r)

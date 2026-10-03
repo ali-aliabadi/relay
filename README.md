@@ -37,11 +37,34 @@ curl -X POST https://relay.alialiabadi.ir/v1/messages \
 # → 202 {"id": "msg_01J...", "status": "queued"}
 ```
 
-Block types: `text`, `fields`, `table`, `image`, `code`, `link`. For a plain message:
+Block types: `text`, `fields`, `table`, `image`, `code`, `link`, `question`. For a plain message:
 
 ```json
 {"to": ["ali"], "text": "Deploy done: v1.2 is live"}
 ```
+
+### Asking a question
+
+Add a `question` block. With `options` the recipient gets buttons; without, they
+reply to the message in Telegram. `webhook` (optional, public `https` only) is
+called with `{"event": "answer", "message_id": "msg_..."}` when an answer arrives.
+
+```json
+{"to": ["ali"], "blocks": [
+  {"type": "text", "text": "v2 passed staging."},
+  {"type": "question", "text": "Ship v2 to prod?", "options": ["Yes", "No"],
+   "webhook": "https://my-app.example/relay-hook"}
+]}
+```
+
+Then poll (or fetch on the webhook) `GET /v1/messages/{id}/answers`:
+
+```json
+{"answers": [{"recipient": "ali", "answer": "Yes", "answered_at": "2026-10-04T09:12:44.123Z"}]}
+```
+
+Each recipient answers separately and can change their answer until the app
+fetches it; after that it's final.
 
 ## How it works
 
@@ -71,8 +94,9 @@ Then register a recipient and send yourself a message (needs `RELAY_TELEGRAM_BOT
 ```bash
 go run ./cmd/relay clients create my-script     # prints an API key once
 go run ./cmd/relay recipients add ali --name "Ali"
-go run ./cmd/relay recipients link ali          # then send /start to the bot
-go run ./cmd/relay send --to ali "hello"        # with `make run` going in another terminal
+# with `make run` going in another terminal: send /start to the bot, it replies with a code
+go run ./cmd/relay recipients link ali <code>
+go run ./cmd/relay send --to ali "hello"
 ```
 
 Common commands: `make check` (everything CI runs), `make test`, `make test-e2e`, `make lint`, `make build`, `make help` for the rest.

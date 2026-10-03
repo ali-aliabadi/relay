@@ -18,6 +18,7 @@ message and delivery attempt.
 - **Callers never format.** Apps send content blocks; each channel has one built-in layout that turns blocks into that platform's format.
 - **No per-message templates.** Adding a new app or a new kind of notification needs no setup in Relay. Layouts are code, one per channel (a second only if a real need appears).
 - **Accept fast, deliver async.** `POST /v1/messages` stores the message and returns `202`; a background worker delivers it.
+- **Answers are pulled, not pushed.** A `question` block collects replies; apps fetch them with `GET /v1/messages/{id}/answers` and can get a content-free webhook nudge.
 - **Channels are plugins.** A channel is one Go package implementing one interface. Nothing else changes when a channel is added.
 - **Everything is observable.** Every message and every delivery attempt is stored and queryable through the API.
 - **Few dependencies.** Prefer the standard library. Each new dependency needs a reason.
@@ -71,6 +72,8 @@ message and delivery attempt.
 - **message** (`internal/message`): the content block types, their validation and limits. Shared by the API and every layout.
 - **layouts**: each channel package owns its one layout (`internal/channel/telegram/layout.go`), turning blocks into what that platform supports and enforcing its limits (Telegram: 4096 chars per text, 1024 per photo caption; truncate with `…`).
 - **channels** (`internal/channel`): the `Channel` interface and one package per provider. `fake` records sends in memory for tests.
+- **answers** (`internal/core/answers.go`): matches a reply to its delivery (only from the chat it was sent to), checks it against the question, stores it and fires the webhook (`internal/core/webhooks.go`).
+- **telegram poller** (`internal/channel/telegram/poller.go`): long-polls `getUpdates` inside `serve` for button taps, replies and `/start`. Telegram allows one reader per bot, so nothing else polls.
 - **cli** (`cmd/relay`): one binary with subcommands: `serve`, `migrate`, `clients`, `recipients`, `send`, `version`.
 
 ### Channel interface
@@ -101,6 +104,8 @@ attachments      id, message_id, content_type, bytes (BLOB), size  -- inline ima
 deliveries       id, message_id, recipient_id, channel, status
                  (queued|sending|delivered|failed), attempts, next_attempt_at,
                  provider_message_id, last_error, created_at, updated_at
+answers          message_id, recipient_id, answer, answered_at, fetched_at NULL
+                 PRIMARY KEY (message_id, recipient_id)
 ```
 
 Tables are SQLite `STRICT`. Times are stored as UTC text in a fixed-width format
@@ -108,7 +113,12 @@ Tables are SQLite `STRICT`. Times are stored as UTC text in a fixed-width format
 cascades to its contacts and deliveries.
 
 Private columns (`messages.title`, `messages.blocks`, `attachments.bytes`,
-`contacts.address`) are stored encrypted (see Privacy and security).
+`contacts.address`, `answers.answer`) are stored encrypted (see Privacy and security).
+
+An answer can be replaced while `fetched_at` is NULL. The first
+`GET /v1/messages/{id}/answers` that returns it sets `fetched_at`, and from then
+on it is final. `provider_message_id` is the Telegram ID of the last part sent
+(the one with the question and buttons), which typed replies point at.
 
 A message fans out into one `deliveries` row per recipient per planned channel.
 Message status is derived from its deliveries: `queued`, `sending`, `delivered`
@@ -140,6 +150,7 @@ Errors use one shape: `{"error": {"code": "invalid_request", "message": "..."}}`
 | `POST` | `/v1/messages` | Queue a message → `202 {"id", "status"}`; repeat with the same `idempotency_key` → `200` with the original |
 | `GET` | `/v1/messages/{id}` | Message status plus its deliveries |
 | `GET` | `/v1/messages` | List, filter by `status`, `since`, `limit`, cursor pagination |
+| `GET` | `/v1/messages/{id}/answers` | Answers to the message's question so far; returning one makes it final |
 | `GET` `POST` | `/v1/recipients` | List / create recipients |
 | `GET` `PUT` `DELETE` | `/v1/recipients/{username}` | Read / update / delete a recipient |
 | `POST` | `/v1/preview` | Same body as `/v1/messages`; returns what each channel would send, no delivery |
@@ -151,6 +162,7 @@ Errors use one shape: `{"error": {"code": "invalid_request", "message": "..."}}`
 - Validation failures are `422` with `{"error": {"code": "invalid_request", "message": "...", "problems": ["to[1]: unknown recipient", ...]}}`. Problems name field paths and rules, never the caller's values (not even usernames).
 - Malformed JSON, unknown fields or trailing data are `400 invalid_json`; a body over `RELAY_MAX_BODY_BYTES` is `413 too_large`.
 - A recipient must have a linked contact on a configured channel, otherwise `to[i]: recipient has no linked channel to send on`.
+- `GET /v1/messages/{id}/answers` returns `{"answers": [{"recipient": "<username>", "answer", "answered_at"}]}`, one per recipient who answered (empty while waiting). It is the only endpoint that returns content, because the asking app is its source. Another client's message is `404`; answers are deleted with the content at retention.
 - `GET /v1/messages/{id}` returns metadata only (`id`, `status`, `urgency`, `source`, `request_id`, `created_at`, `redacted`) plus `deliveries` (`id`, `recipient_id`, `channel`, `status`, `attempts`, `next_attempt_at`, `last_error`, `updated_at`). Content is never returned. Another client's message is `404`.
 - `GET /v1/messages?status=&since=<RFC 3339>&limit=1-100&cursor=` returns `{"messages": [...], "next_cursor": "msg_..."}`, newest first; `next_cursor` is present when the page is full.
 - Recipients: `POST` takes `username`, `display_name`, optional `timezone` (IANA, default `UTC`) and `channel_preference` (default `["telegram"]`); `PUT` replaces `display_name`, `timezone` and `channel_preference`. Responses add `linked_channels` (channel names only, never addresses) and `created_at`.
@@ -174,7 +186,8 @@ POST /v1/messages
     {"type": "table",  "columns": ["Disk", "Used"], "rows": [["sda", "98%"], ["sdb", "41%"]]},
     {"type": "image",  "url": "https://grafana.example/render/disk.png", "caption": "Disk usage"},
     {"type": "code",   "text": "rsync: write failed: No space left on device"},
-    {"type": "link",   "text": "Open dashboard", "url": "https://grafana.example/d/disks"}
+    {"type": "link",   "text": "Open dashboard", "url": "https://grafana.example/d/disks"},
+    {"type": "question", "text": "Retry now?", "options": ["Yes", "No"], "webhook": "https://app.example/hook"}
   ],
   "idempotency_key": "backup-nas-2026-10-03"
 }
@@ -191,9 +204,10 @@ is the same as one `text` block.
 | `image` | `url` **or** `base64` + `content_type`, optional `caption` | `sendPhoto`; title + text become the caption when short enough, otherwise a follow-up message |
 | `code` | `text` | `<pre>` block |
 | `link` | `text`, `url` (https only) | Inline keyboard button |
+| `question` | `text`, optional `options` (1-10, each up to 64 chars, unique), optional `webhook` (https) | `❓ <b>text</b>` at the end (never truncated away); options become answer buttons, otherwise "Reply to this message to answer." |
 
 Rules: `title` is shown bold at the top; `source` as a small footer; `critical`
-adds 🚨 to the title. Limits: 20 blocks, 50 table rows × 8 columns, 1 image in the
+adds 🚨 to the title. At most one `question` block. Limits: 20 blocks, 50 table rows × 8 columns, 1 image in the
 MVP (inline `base64` up to 5 MB, PNG/JPEG only; use `base64` for images on private
 hosts, since Telegram fetches `url` images itself). A channel that can't show a block
 falls back to its plain-text form (e.g. a table as aligned text for SMS).
@@ -203,9 +217,19 @@ falls back to its plain-text form (e.g. a table as aligned text for SMS).
 
 1. Create a bot with @BotFather; put the token in `RELAY_TELEGRAM_BOT_TOKEN`.
 2. Add a recipient: `relay recipients add ali --name "Ali"`.
-3. Run `relay recipients link ali`, then send `/start` to the bot from that person's Telegram. The command long-polls `getUpdates`, shows who wrote, and stores the chat_id as a verified contact.
+3. With `relay serve` running, that person sends `/start` to the bot. The bot replies with a link code: the chat ID encrypted with `RELAY_ENCRYPTION_KEY`, valid for an hour, so it reveals nothing and can't be forged.
+4. Run `relay recipients link ali <code>`. It stores the chat as a verified contact and sends a confirmation.
 
-The MVP sends only; it does not run a Telegram webhook.
+### Answers
+
+`serve` long-polls `getUpdates` (no webhook, so nothing changes in nginx or
+Cloudflare). Unconfirmed updates wait on Telegram's side for 24h, so a restart
+loses nothing.
+
+- **Button tap:** the button's callback data is `a:<delivery_id>:<option>`. Relay checks the tap came from the chat that delivery went to, saves the option, shows a toast and redraws the buttons with ✅ on the choice (link buttons are kept).
+- **Typed reply:** a Telegram reply to the question message, matched by (channel, provider message ID) and the chat. A message that isn't a reply gets a hint; a typed reply to a question with buttons asks for a button.
+- **Feedback:** every answer gets a short reply: saved, already final, expired (content purged), or not a question.
+- **Webhook:** after a saved answer, Relay POSTs `{"event": "answer", "message_id"}` to the question's `webhook`, retrying after 5s and 30s. Only public addresses are dialed (checked after DNS resolution, so a hostname pointing at a private IP is refused too), redirects aren't followed, and the URL is never logged. Retries live in memory; apps should also poll.
 
 ## Configuration
 
@@ -234,7 +258,8 @@ payload (markup injection, oversized or fake images), and a compromised dependen
 - **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days.
 - **Transport:** HTTPS only: Cloudflare terminates public TLS and reaches nginx over TLS (SSL mode Full). Relay listens on the host's loopback only.
 - **Auth:** per-client API keys (`rk_` + 32 random bytes), SHA-256 hashed, constant-time compare, revocable. Failed auth is rate-limited per IP: 10 failures in 10 minutes and that IP gets `429` with `Retry-After` until the window ends. Counts live in memory only and IPs are never logged.
-- **Input handling:** body size limit, strict JSON decoding, block limits, every value HTML-escaped by the Telegram layout, `link`/`image` URLs restricted to `https`, Relay fetches no URLs itself (Telegram fetches image URLs), inline images type-checked by magic bytes.
+- **Input handling:** body size limit, strict JSON decoding, block limits, every value HTML-escaped by the Telegram layout, `link`/`image`/`webhook` URLs restricted to `https`, inline images type-checked by magic bytes. Relay fetches no URLs itself (Telegram fetches image URLs) except question webhooks, which carry no content and may only reach public addresses.
+- **Answers:** accepted only from the chat a question was delivered to, encrypted at rest, purged with message content, returned only to the client that asked.
 - **Logging:** content and contact addresses are never logged (see Observability).
 - **Container:** distroless/static non-root image, read-only root filesystem, only `/data` writable.
 - **Supply chain:** `govulncheck` and `gitleaks` in CI, `trivy` scan of the image, Dependabot for Go modules, Actions and the base image; Actions pinned by commit SHA.
@@ -293,6 +318,6 @@ See the "Later" section of docs/ROADMAP.md. Design notes for the big ones:
 
 - **SMS**: another `Channel` package; makes `high` fallback meaningful. Provider undecided.
 - **Quiet hours / digests**: recipient `quiet_hours` + `timezone`; the worker sets `next_attempt_at` to the end of quiet hours for `low`/`normal`.
-- **Telegram acks**: needs a webhook; inline "Got it" button; unacked `critical` messages escalate.
+- **Telegram acks**: a `question` with one "Got it" option covers the ack; unacked `critical` messages escalating is still to do.
 - **Self sign-up by username**: recipient sends `/start <username>` to the bot, admin approves.
 - **MCP server**: exposes `send_message` so Claude and other agents can notify through Relay.

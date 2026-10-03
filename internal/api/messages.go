@@ -87,6 +87,27 @@ func (h messageHandlers) get(w http.ResponseWriter, r *http.Request) {
 	}{summary(msg), out})
 }
 
+type answerResponse struct {
+	Recipient  string `json:"recipient"`
+	Answer     string `json:"answer"`
+	AnsweredAt string `json:"answered_at"`
+}
+
+// answers returns the answers so far, one per recipient who answered. It is
+// the one endpoint that returns content: the app asked the question.
+func (h messageHandlers) answers(w http.ResponseWriter, r *http.Request) {
+	as, err := h.svc.TakeAnswers(r.Context(), clientFrom(r.Context()).ID, r.PathValue("id"))
+	if err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	out := make([]answerResponse, 0, len(as))
+	for _, a := range as {
+		out = append(out, answerResponse{Recipient: a.Username, Answer: a.Text, AnsweredAt: a.AnsweredAt.Format(time.RFC3339Nano)})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"answers": out})
+}
+
 func (h messageHandlers) list(w http.ResponseWriter, r *http.Request) {
 	f, ok := parseListFilter(w, r)
 	if !ok {

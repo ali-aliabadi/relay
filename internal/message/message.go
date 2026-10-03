@@ -14,12 +14,13 @@ const (
 
 // Block types.
 const (
-	BlockText   = "text"
-	BlockFields = "fields"
-	BlockTable  = "table"
-	BlockImage  = "image"
-	BlockCode   = "code"
-	BlockLink   = "link"
+	BlockText     = "text"
+	BlockFields   = "fields"
+	BlockTable    = "table"
+	BlockImage    = "image"
+	BlockCode     = "code"
+	BlockLink     = "link"
+	BlockQuestion = "question"
 )
 
 // Request is the body of POST /v1/messages and POST /v1/preview.
@@ -54,6 +55,8 @@ type Block struct {
 	Base64      string     `json:"base64,omitempty"`       // image (inline)
 	ContentType string     `json:"content_type,omitempty"` // image (inline)
 	Caption     string     `json:"caption,omitempty"`      // image
+	Options     []string   `json:"options,omitempty"`      // question: buttons; none means a typed reply
+	Webhook     string     `json:"webhook,omitempty"`      // question: called when an answer arrives
 
 	// Attachment is set by Relay, never by callers: the index into the
 	// message's stored attachments that holds this inline image's bytes.
@@ -74,6 +77,19 @@ type Message struct {
 	Source  string
 	Blocks  []Block
 	Images  []Image // inline image bytes, indexed by Block.Attachment
+
+	// DeliveryID is set by the worker so a layout can tie answers to it.
+	DeliveryID string
+}
+
+// Question returns the message's question block, if it has one.
+func Question(blocks []Block) (Block, bool) {
+	for _, b := range blocks {
+		if b.Type == BlockQuestion {
+			return b, true
+		}
+	}
+	return Block{}, false
 }
 
 // Image is an inline image's bytes.

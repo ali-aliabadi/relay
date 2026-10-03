@@ -149,7 +149,7 @@ func (w *Worker) send(ctx context.Context, d store.Delivery) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	msg := message.Message{Urgency: m.Urgency, Title: m.Title, Source: m.Source}
+	msg := message.Message{Urgency: m.Urgency, Title: m.Title, Source: m.Source, DeliveryID: d.ID}
 	if err := json.Unmarshal(m.Blocks, &msg.Blocks); err != nil {
 		return "", channel.Permanent("stored blocks are unreadable")
 	}

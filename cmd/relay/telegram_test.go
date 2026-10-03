@@ -1,12 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"net"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -28,13 +27,6 @@ func newTelegramCLI(t *testing.T) (cli, *telegramtest.Server) {
 	})}, bot
 }
 
-func runWithInput(c cli, stdin io.Reader, args ...string) (int, string, string) {
-	c.t.Helper()
-	var stdout, stderr bytes.Buffer
-	code := run(c.t.Context(), args, c.env, stdin, &stdout, &stderr)
-	return code, stdout.String(), stderr.String()
-}
-
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -46,53 +38,108 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 }
 
+// startServe runs `relay serve` in-process and returns its base URL.
+func startServe(t *testing.T, c cli) (string, *syncBuffer) {
+	t.Helper()
+	var lc net.ListenConfig
+	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	logs := &syncBuffer{}
+	ctx, cancel := context.WithCancel(t.Context())
+	served := make(chan error, 1)
+	go func() { served <- serve(ctx, c.env, logs, ln) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-served; err != nil {
+			t.Errorf("serve: %v", err)
+		}
+	})
+	return "http://" + ln.Addr().String(), logs
+}
+
+var codeRe = regexp.MustCompile(`relay recipients link <your username> (\S+)`)
+
+// linkCode sends /start from chat and returns the code the bot replies with.
+func linkCode(t *testing.T, bot *telegramtest.Server, chat int64) string {
+	t.Helper()
+	before := len(bot.Calls("sendMessage"))
+	bot.AddStart(chat)
+	var code string
+	waitFor(t, func() bool {
+		for _, m := range bot.Calls("sendMessage")[before:] {
+			if text, _ := m.Params["text"].(string); m.Params["chat_id"] == float64(chat) && codeRe.MatchString(text) {
+				code = codeRe.FindStringSubmatch(text)[1]
+				return true
+			}
+		}
+		return false
+	})
+	return code
+}
+
 func TestRecipientsLink(t *testing.T) {
 	c, bot := newTelegramCLI(t)
 	if code, _, errOut := c.run("recipients", "add", "ali", "--name", "Ali"); code != 0 {
 		t.Fatal(errOut)
 	}
-	bot.AddStart(111, "Old", "old_update") // before the command: must be skipped
+	startServe(t, c)
+	code := linkCode(t, bot, 515151)
+	if strings.Contains(code, "515151") {
+		t.Errorf("link code shows the chat id: %s", code)
+	}
 
-	type res struct {
-		code     int
-		out, err string
-	}
-	done := make(chan res, 1)
-	stdinR, stdinW := io.Pipe()
-	go func() {
-		code, out, errOut := runWithInput(c, stdinR, "recipients", "link", "ali")
-		done <- res{code, out, errOut}
-	}()
-	waitFor(t, func() bool { return len(bot.Calls("getUpdates")) >= 2 })
-	bot.AddStart(424242, "Stranger", "someone_else")
-	bot.AddStart(515151, "Ali", "ali_real")
-	_, _ = io.WriteString(stdinW, "n\ny\n")
-
-	r := <-done
-	if r.code != 0 || !strings.Contains(r.out, "Linked ali to Telegram") || !strings.Contains(r.out, "@relay_test_bot") {
-		t.Fatalf("link = %d %q %q", r.code, r.out, r.err)
-	}
-	if strings.Contains(r.out, "424242") || strings.Contains(r.out, "515151") {
-		t.Errorf("chat id printed: %s", r.out)
-	}
-	if strings.Contains(r.out, "Old") {
-		t.Errorf("stale update was offered: %s", r.out)
+	rc, out, errOut := c.run("recipients", "link", "ali", code)
+	if rc != 0 || out != "Linked ali to telegram.\n" || errOut != "" {
+		t.Fatalf("link = %d %q %q", rc, out, errOut)
 	}
 	sends := bot.Calls("sendMessage")
-	if len(sends) != 1 || sends[0].Params["chat_id"] != float64(515151) {
-		t.Errorf("confirmation sends = %+v", sends)
+	last := sends[len(sends)-1]
+	if last.Params["chat_id"] != float64(515151) || !strings.Contains(last.Params["text"].(string), "Notifications for Ali") {
+		t.Errorf("confirmation = %+v", last.Params)
 	}
-	_, list, _ := c.run("recipients", "list")
-	if !strings.Contains(list, "telegram  ") && !strings.Contains(list, "telegram\n") {
-		t.Errorf("recipient not shown as linked: %s", list)
+	if _, list, _ := c.run("recipients", "list"); !strings.Contains(list, "telegram") || strings.Contains(list, "515151") {
+		t.Errorf("list = %s", list)
+	}
+
+	for _, tt := range []struct {
+		args []string
+		code int
+		err  string
+	}{
+		{[]string{"recipients", "link", "ali", "not-a-code"}, 1, "invalid or expired"},
+		{[]string{"recipients", "link", "nobody", code}, 1, "not found"},
+		{[]string{"recipients", "link", "ali"}, 2, "Usage"},
+		{[]string{"recipients", "link"}, 2, "Usage"},
+		{[]string{"recipients", "link", "ali", code, "extra"}, 2, "Usage"},
+	} {
+		if rc, _, errOut := c.run(tt.args...); rc != tt.code || !strings.Contains(errOut, tt.err) {
+			t.Errorf("%v = %d %q", tt.args, rc, errOut)
+		}
 	}
 }
 
-func TestLinkNeedsToken(t *testing.T) {
-	c := newCLI(t)
+// TestLinkWithoutToken: the code alone proves the chat, so linking works on a
+// machine without the bot token; it just can't send the confirmation.
+func TestLinkWithoutToken(t *testing.T) {
+	c, bot := newTelegramCLI(t)
 	c.run("recipients", "add", "ali", "--name", "Ali")
-	if code, _, errOut := c.run("recipients", "link", "ali"); code != 1 || !strings.Contains(errOut, "RELAY_TELEGRAM_BOT_TOKEN") {
-		t.Errorf("= %d %q", code, errOut)
+	startServe(t, c)
+	code := linkCode(t, bot, 616161)
+	sent := len(bot.Calls("sendMessage"))
+
+	noToken := cli{t: t, env: func(k string) (string, bool) {
+		if k == "RELAY_TELEGRAM_BOT_TOKEN" {
+			return "", false
+		}
+		return c.env(k)
+	}}
+	if rc, out, errOut := noToken.run("recipients", "link", "ali", code); rc != 0 || !strings.Contains(out, "Linked ali") {
+		t.Fatalf("link = %d %q %q", rc, out, errOut)
+	}
+	if len(bot.Calls("sendMessage")) != sent {
+		t.Error("sent a confirmation without a token")
 	}
 }
 
@@ -101,23 +148,10 @@ func TestLinkNeedsToken(t *testing.T) {
 func TestSendThroughServe(t *testing.T) {
 	c, bot := newTelegramCLI(t)
 	c.run("recipients", "add", "ali", "--name", "Ali")
-	go func() {
-		waitFor(t, func() bool { return len(bot.Calls("getUpdates")) >= 2 })
-		bot.AddStart(515151, "Ali", "ali")
-	}()
-	if code, out, errOut := runWithInput(c, strings.NewReader("y\n"), "recipients", "link", "ali"); code != 0 {
+	startServe(t, c)
+	if code, out, errOut := c.run("recipients", "link", "ali", linkCode(t, bot, 515151)); code != 0 {
 		t.Fatalf("link = %d %q %q", code, out, errOut)
 	}
-
-	var lc net.ListenConfig
-	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	served := make(chan error, 1)
-	go func() { served <- serve(ctx, c.env, &syncBuffer{}, ln) }()
-	defer func() { cancel(); <-served }()
 
 	code, out, errOut := c.run("send", "--to", "ali", "--title", "Hi", "--wait", "5s", "hello", "from", "cli")
 	if code != 0 || !strings.Contains(out, "Status: delivered") {

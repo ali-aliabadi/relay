@@ -56,6 +56,23 @@ var goldenCases = map[string]message.Message{
 		{Type: "text", Text: strings.Repeat("long text ", 150)},
 	}},
 	"emoji": {Urgency: "normal", Blocks: []message.Block{{Type: "text", Text: "سلام 👋🏽 مرحبا"}}},
+	"question_options": {Urgency: "high", Title: "Deploy", Source: "ci", DeliveryID: "dlv_TEST", Blocks: []message.Block{
+		{Type: "text", Text: "v2 passed staging."},
+		{Type: "question", Text: "Ship <v2> to prod?", Options: []string{"Yes", "No & wait"}, Webhook: "https://app.example/hook"},
+		{Type: "link", Text: "Diff", URL: "https://git.example/diff"},
+	}},
+	"question_typed": {Urgency: "normal", DeliveryID: "dlv_TEST", Blocks: []message.Block{
+		{Type: "question", Text: "What should the new hostname be?"},
+	}},
+	"question_long_text": {Urgency: "normal", DeliveryID: "dlv_TEST", Blocks: []message.Block{
+		{Type: "text", Text: strings.Repeat("long text ", 500)},
+		{Type: "question", Text: "Still there?", Options: []string{"Yes"}},
+	}},
+	"question_photo_long": {Urgency: "normal", DeliveryID: "dlv_TEST", Blocks: []message.Block{
+		{Type: "image", URL: "https://example.com/chart.png", Caption: "Chart"},
+		{Type: "text", Text: strings.Repeat("long text ", 150)},
+		{Type: "question", Text: "Scale up?", Options: []string{"Yes", "No"}},
+	}},
 }
 
 func TestGolden(t *testing.T) {

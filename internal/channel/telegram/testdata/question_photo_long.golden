@@ -1,0 +1,21 @@
+[
+  {
+    "kind": "photo",
+    "text": "Chart",
+    "photo": "https://example.com/chart.png"
+  },
+  {
+    "kind": "text",
+    "text": "long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text long text \n\n❓ <b>Scale up?</b>",
+    "buttons": [
+      {
+        "text": "Yes",
+        "data": "a:dlv_TEST:0"
+      },
+      {
+        "text": "No",
+        "data": "a:dlv_TEST:1"
+      }
+    ]
+  }
+]
