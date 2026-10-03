@@ -49,19 +49,19 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 4: API
 
-- [ ] Recipients CRUD endpoints
-- [ ] `internal/message`: block types (`text`, `fields`, `table`, `image`, `code`, `link`), `text` shorthand, validation and limits
-- [ ] `POST /v1/messages`: validate blocks, resolve recipients, store inline image, idempotency, create deliveries, `202`
-- [ ] `GET /v1/messages/{id}` and `GET /v1/messages` with filters and cursor pagination
-- [ ] `POST /v1/preview` (uses each channel's `Preview`)
-- [ ] `GET /v1/channels`
+- [x] Recipients CRUD endpoints
+- [x] `internal/message`: block types (`text`, `fields`, `table`, `image`, `code`, `link`), `text` shorthand, validation and limits
+- [x] `POST /v1/messages`: validate blocks, resolve recipients, store inline image, idempotency, create deliveries, `202`
+- [x] `GET /v1/messages/{id}` and `GET /v1/messages` with filters and cursor pagination
+- `POST /v1/preview` and `GET /v1/channels` moved to Phase 5: they need the `Channel` interface and the Telegram layout
 
 ## Phase 5: delivery
 
 - [ ] `Channel` interface, `channel.Error` (permanent / retry-after), `fake` channel
-- [ ] Router: urgency + preferences + `channels` override → ordered plan
+- [x] Router: urgency + preferences + `channels` override → ordered plan
 - [ ] Worker: claim due deliveries atomically, send, record, backoff, requeue stuck `sending` rows on startup
 - [ ] Telegram layout: every block type to HTML/`sendPhoto`/inline buttons, escaping, length limits, golden tests
+- [ ] `POST /v1/preview` (uses each channel's `Preview`) and `GET /v1/channels`
 - [ ] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
 - [ ] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
 - [ ] `relay send` for manual test messages

@@ -146,6 +146,16 @@ Errors use one shape: `{"error": {"code": "invalid_request", "message": "..."}}`
 | `GET` | `/v1/channels` | Configured channels and their health |
 | `GET` | `/healthz` | Liveness, checks the DB |
 
+### Request and response details
+
+- Validation failures are `422` with `{"error": {"code": "invalid_request", "message": "...", "problems": ["to[1]: unknown recipient", ...]}}`. Problems name field paths and rules, never the caller's values (not even usernames).
+- Malformed JSON, unknown fields or trailing data are `400 invalid_json`; a body over `RELAY_MAX_BODY_BYTES` is `413 too_large`.
+- A recipient must have a linked contact on a configured channel, otherwise `to[i]: recipient has no linked channel to send on`.
+- `GET /v1/messages/{id}` returns metadata only (`id`, `status`, `urgency`, `source`, `request_id`, `created_at`, `redacted`) plus `deliveries` (`id`, `recipient_id`, `channel`, `status`, `attempts`, `next_attempt_at`, `last_error`, `updated_at`). Content is never returned. Another client's message is `404`.
+- `GET /v1/messages?status=&since=<RFC 3339>&limit=1-100&cursor=` returns `{"messages": [...], "next_cursor": "msg_..."}`, newest first; `next_cursor` is present when the page is full.
+- Recipients: `POST` takes `username`, `display_name`, optional `timezone` (IANA, default `UTC`) and `channel_preference` (default `["telegram"]`); `PUT` replaces `display_name`, `timezone` and `channel_preference`. Responses add `linked_channels` (channel names only, never addresses) and `created_at`.
+- Inline images are moved out of the blocks into `attachments`; the stored image block keeps an `attachment` index instead of the base64.
+
 ### Message format
 
 A message is an optional `title` plus a list of content `blocks`. Callers never

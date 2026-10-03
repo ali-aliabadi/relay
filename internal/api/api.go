@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ali-aliabadi/relay/internal/core"
 	"github.com/ali-aliabadi/relay/internal/obs"
 )
 
@@ -19,6 +20,8 @@ type Deps struct {
 	Clock        func() time.Time
 	Health       HealthFunc
 	Auth         Authenticator
+	Recipients   *core.Recipients
+	Messages     *core.Messages
 	MaxBodyBytes int64
 }
 
@@ -30,6 +33,18 @@ func NewHandler(d Deps) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", healthz(d.Logger, d.Health))
+	rh := recipientHandlers{logger: d.Logger, svc: d.Recipients}
+	mux.Handle("GET /v1/recipients", authed(http.HandlerFunc(rh.list)))
+	mux.Handle("POST /v1/recipients", authed(http.HandlerFunc(rh.create)))
+	mux.Handle("GET /v1/recipients/{username}", authed(http.HandlerFunc(rh.get)))
+	mux.Handle("PUT /v1/recipients/{username}", authed(http.HandlerFunc(rh.update)))
+	mux.Handle("DELETE /v1/recipients/{username}", authed(http.HandlerFunc(rh.remove)))
+
+	mh := messageHandlers{logger: d.Logger, svc: d.Messages}
+	mux.Handle("POST /v1/messages", authed(http.HandlerFunc(mh.create)))
+	mux.Handle("GET /v1/messages", authed(http.HandlerFunc(mh.list)))
+	mux.Handle("GET /v1/messages/{id}", authed(http.HandlerFunc(mh.get)))
+
 	mux.Handle("/v1/", authed(notFound()))
 	mux.Handle("/", notFound())
 	return obs.Middleware(d.Logger, d.Clock, limitBody(d.MaxBodyBytes, mux))
