@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ali-aliabadi/relay/internal/channel"
+	"github.com/ali-aliabadi/relay/internal/channel/fake"
 	"github.com/ali-aliabadi/relay/internal/core"
 	"github.com/ali-aliabadi/relay/internal/crypto"
 	"github.com/ali-aliabadi/relay/internal/obs"
@@ -47,7 +49,7 @@ func newV1(t *testing.T) *v1 {
 	logs := &bytes.Buffer{}
 	srv := httptest.NewServer(NewHandler(Deps{
 		Logger: obs.NewLogger(logs, slog.LevelDebug), Clock: time.Now, Health: st.Ping, Auth: clients,
-		Recipients: core.NewRecipients(st), Messages: core.NewMessages(st, []string{"telegram"}),
+		Recipients: core.NewRecipients(st), Messages: core.NewMessages(st, []channel.Channel{fake.New("telegram")}),
 		MaxBodyBytes: 7 << 20,
 	}))
 	t.Cleanup(srv.Close)

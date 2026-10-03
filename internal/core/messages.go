@@ -6,21 +6,23 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ali-aliabadi/relay/internal/channel"
 	"github.com/ali-aliabadi/relay/internal/message"
 	"github.com/ali-aliabadi/relay/internal/store"
 )
 
-// Messages accepts and reads messages.
+// Messages accepts, previews and reads messages.
 type Messages struct {
 	store      *store.Store
+	channels   []channel.Channel
 	configured map[string]bool
 }
 
-// NewMessages returns a Messages service that routes to the configured channels.
-func NewMessages(s *store.Store, configured []string) *Messages {
-	m := &Messages{store: s, configured: map[string]bool{}}
-	for _, ch := range configured {
-		m.configured[ch] = true
+// NewMessages returns a Messages service that routes to channels.
+func NewMessages(s *store.Store, channels []channel.Channel) *Messages {
+	m := &Messages{store: s, channels: channels, configured: map[string]bool{}}
+	for _, ch := range channels {
+		m.configured[ch.Name()] = true
 	}
 	return m
 }

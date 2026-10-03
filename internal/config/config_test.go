@@ -31,6 +31,7 @@ func TestLoadDefaults(t *testing.T) {
 		{"Addr", cfg.Addr, ":8080"},
 		{"DBPath", cfg.DBPath, "/data/relay.db"},
 		{"TelegramBotToken", cfg.TelegramBotToken.Reveal(), ""},
+		{"TelegramAPIURL", cfg.TelegramAPIURL, "https://api.telegram.org"},
 		{"WorkerPollInterval", cfg.WorkerPollInterval, time.Second},
 		{"LogLevel", cfg.LogLevel, slog.LevelInfo},
 		{"RetentionDays", cfg.RetentionDays, 30},
@@ -88,6 +89,7 @@ func TestLoadErrors(t *testing.T) {
 		{"zero body", map[string]string{"RELAY_MAX_BODY_BYTES": "0"}, "RELAY_MAX_BODY_BYTES must be positive"},
 		{"empty addr", map[string]string{"RELAY_ADDR": ""}, "RELAY_ADDR must not be empty"},
 		{"empty db", map[string]string{"RELAY_DB_PATH": " "}, "RELAY_DB_PATH must not be empty"},
+		{"bad telegram url", map[string]string{"RELAY_TELEGRAM_API_URL": "ftp://x"}, "RELAY_TELEGRAM_API_URL must be"},
 		{"same addrs", map[string]string{"RELAY_ADDR": ":1", "RELAY_METRICS_ADDR": ":1"}, "must differ"},
 	}
 	for _, tt := range tests {

@@ -52,15 +52,6 @@ func serve(ctx context.Context, lookup config.LookupFunc, logOut io.Writer, ln n
 	return runHTTP(ctx, logger, srv, ln)
 }
 
-// configuredChannels lists the channels this instance can send on.
-func configuredChannels(cfg config.Config) []string {
-	var out []string
-	if cfg.TelegramBotToken != "" {
-		out = append(out, "telegram")
-	}
-	return out
-}
-
 // newHTTPServer builds the public API server with its timeouts.
 func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, st *store.Store) *http.Server {
 	return &http.Server{
@@ -70,7 +61,7 @@ func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, 
 			Health:       st.Ping,
 			Auth:         core.NewClients(st),
 			Recipients:   core.NewRecipients(st),
-			Messages:     core.NewMessages(st, configuredChannels(cfg)),
+			Messages:     core.NewMessages(st, buildChannels(cfg)),
 			MaxBodyBytes: cfg.MaxBodyBytes,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

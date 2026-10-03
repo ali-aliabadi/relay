@@ -141,3 +141,20 @@ func parseListFilter(w http.ResponseWriter, r *http.Request) (store.ListFilter, 
 	}
 	return f, true
 }
+
+func (h messageHandlers) preview(w http.ResponseWriter, r *http.Request) {
+	var req message.Request
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	previews, err := h.svc.Preview(req)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channels": previews})
+}
+
+func (h messageHandlers) channels(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"channels": h.svc.Channels(r.Context())})
+}

@@ -1,0 +1,13 @@
+[
+  {
+    "kind": "photo",
+    "text": "<b>Disk usage</b>\n\n<i>Last 24h</i>\n\nsda is filling up.",
+    "photo": "https://grafana.example/render/disk.png",
+    "buttons": [
+      {
+        "text": "Open",
+        "url": "https://grafana.example/d/disks"
+      }
+    ]
+  }
+]

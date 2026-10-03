@@ -57,12 +57,12 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 5: delivery
 
-- [ ] `Channel` interface, `channel.Error` (permanent / retry-after), `fake` channel
+- [x] `Channel` interface, `channel.Error` (permanent / retry-after), `fake` channel
 - [x] Router: urgency + preferences + `channels` override → ordered plan
 - [ ] Worker: claim due deliveries atomically, send, record, backoff, requeue stuck `sending` rows on startup
-- [ ] Telegram layout: every block type to HTML/`sendPhoto`/inline buttons, escaping, length limits, golden tests
-- [ ] `POST /v1/preview` (uses each channel's `Preview`) and `GET /v1/channels`
-- [ ] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
+- [x] Telegram layout: every block type to HTML/`sendPhoto`/inline buttons, escaping, length limits, golden tests
+- [x] `POST /v1/preview` (uses each channel's `Preview`) and `GET /v1/channels`
+- [x] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
 - [ ] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
 - [ ] `relay send` for manual test messages
 - [ ] Retention job: purge content after `RELAY_RETENTION_DAYS`, delete metadata after 180 days

@@ -214,6 +214,7 @@ The MVP sends only; it does not run a Telegram webhook.
 | `RELAY_ADDR` | `:8080` | Listen address |
 | `RELAY_DB_PATH` | `/data/relay.db` | SQLite file |
 | `RELAY_TELEGRAM_BOT_TOKEN` | — | Enables the Telegram channel |
+| `RELAY_TELEGRAM_API_URL` | `https://api.telegram.org` | Bot API base URL (tests point it at a fake) |
 | `RELAY_WORKER_POLL_INTERVAL` | `1s` | Outbox poll interval |
 | `RELAY_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `RELAY_ENCRYPTION_KEY` | — (required) | 32-byte base64 key for private columns. Losing it makes stored content unreadable |

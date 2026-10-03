@@ -1,0 +1,6 @@
+[
+  {
+    "kind": "text",
+    "text": "<b>&lt;b&gt;not bold&lt;/b&gt; &amp; co</b>\n\n&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; 1 &lt; 2 &amp;&amp; 3 &gt; 2\n\n<b>&lt;i&gt;L&lt;/i&gt;:</b> a&amp;b\n\n<pre>&lt;/pre&gt;&lt;b&gt;x&lt;/b&gt;</pre>"
+  }
+]
