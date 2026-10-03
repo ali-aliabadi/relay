@@ -53,7 +53,7 @@ Full design, data model and API: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
 
-Go · `net/http` · SQLite (`modernc.org/sqlite`) · sqlc · goose · slog + Prometheus · golangci-lint · testcontainers · Docker · Caddy · GitHub Actions
+Go · `net/http` · SQLite (`modernc.org/sqlite`) · sqlc · goose · slog + Prometheus · golangci-lint · testcontainers · Docker · nginx · GitHub Actions
 
 ## Running locally
 
@@ -82,7 +82,8 @@ Common commands: `make check` (everything CI runs), `make test`, `make test-e2e`
 Merging to `master` deploys once CI passes: GitHub Actions builds the image,
 pushes it to `ghcr.io/ali-aliabadi/relay`, copies `deploy/` to `/opt/relay` on the
 VPS over SSH and runs `docker compose up -d` there. The service is served at
-`https://relay.alialiabadi.ir` behind Caddy. On the VPS, admin commands run inside
+`https://relay.alialiabadi.ir` through the VPS's existing nginx (site config in
+`deploy/nginx-relay.conf`, installed once by hand). On the VPS, admin commands run inside
 the container:
 
 ```bash

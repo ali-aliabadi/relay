@@ -78,7 +78,7 @@ jobs:
           EOF
 
       - name: Copy deploy files
-        run: scp deploy/docker-compose.yml deploy/Caddyfile vps:/opt/relay/
+        run: scp deploy/docker-compose.yml vps:/opt/relay/
 
       - name: Pull and restart
         env:

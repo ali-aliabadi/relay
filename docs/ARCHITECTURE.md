@@ -26,7 +26,7 @@ message and delivery attempt.
 
 - Users: ali and ali's wife, registered by hand via the admin CLI.
 - MVP channel: Telegram only. SMS comes later; provider not chosen yet.
-- Hosting: existing VPS (`german-vps`) with Docker, behind Caddy at `relay.alialiabadi.ir`.
+- Hosting: existing VPS (`german-vps`) with Docker, behind the VPS's existing nginx at `relay.alialiabadi.ir`.
 - Deploy: merging to `master` deploys via GitHub Actions.
 
 ## Stack
@@ -222,7 +222,7 @@ The MVP sends only; it does not run a Telegram webhook.
 | `RELAY_METRICS_ADDR` | `127.0.0.1:9090` | Internal listener for `/metrics` (and `/debug/pprof` when `RELAY_PPROF=true`) |
 | `RELAY_PPROF` | `false` | Serve `/debug/pprof` on the metrics listener |
 | `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image) |
-| `RELAY_TRUST_FORWARDED_FOR` | `false` | Take the client IP from the last `X-Forwarded-For` entry (set by compose, since Relay is only reachable through Caddy) |
+| `RELAY_TRUST_FORWARDED_FOR` | `false` | Take the client IP from the last `X-Forwarded-For` entry (set by compose, since Relay is only reachable through nginx on the same host) |
 
 ## Privacy and security
 
@@ -232,7 +232,7 @@ payload (markup injection, oversized or fake images), and a compromised dependen
 
 - **Encryption at rest:** private columns are encrypted with AES-256-GCM (random nonce per value, key version byte prefix for future rotation). The column and row ID are bound in as associated data, so a ciphertext copied to another row fails to decrypt. Search never needs these columns.
 - **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days.
-- **Transport:** HTTPS only via Caddy; HSTS. Relay itself listens on the compose network only.
+- **Transport:** HTTPS only via nginx (certbot). Relay listens on the host's loopback only.
 - **Auth:** per-client API keys (`rk_` + 32 random bytes), SHA-256 hashed, constant-time compare, revocable. Failed auth is rate-limited per IP: 10 failures in 10 minutes and that IP gets `429` with `Retry-After` until the window ends. Counts live in memory only and IPs are never logged.
 - **Input handling:** body size limit, strict JSON decoding, block limits, every value HTML-escaped by the Telegram layout, `link`/`image` URLs restricted to `https`, Relay fetches no URLs itself (Telegram fetches image URLs), inline images type-checked by magic bytes.
 - **Logging:** content and contact addresses are never logged (see Observability).
@@ -279,11 +279,11 @@ provider fakes, and later Mailpit for email or Postgres if adopted).
 ## Deployment
 
 - Target: the VPS reachable as `german-vps`, Docker already installed.
-- Files on the VPS in `/opt/relay`: `docker-compose.yml`, `Caddyfile` (both copied from `deploy/` on every deploy) and `.env` (created by hand, never in git).
-- Compose runs two services: `relay` (image `ghcr.io/ali-aliabadi/relay`) with a named volume at `/data`, and `caddy` serving `https://relay.alialiabadi.ir` with automatic TLS. If the VPS already has a reverse proxy on ports 80/443, drop the `caddy` service and route to `relay:8080` from that proxy instead.
+- Files on the VPS in `/opt/relay`: `docker-compose.yml` (copied from `deploy/` on every deploy) and `.env` (created by hand, never in git).
+- The VPS already runs nginx on ports 80/443 for other services, so Relay doesn't bring its own proxy. Compose runs one service, `relay` (image `ghcr.io/ali-aliabadi/relay`), with a named volume at `/data`, published only on `127.0.0.1:${RELAY_HOST_PORT:-18080}`. nginx serves `https://relay.alialiabadi.ir` (certificate from certbot) and proxies to that port, overwriting `X-Forwarded-For` with the client address. The site config is `deploy/nginx-relay.conf`; it's installed by hand once, and deploys never touch nginx.
 - **CI** (`.github/workflows/ci.yml`): on pull requests and pushes to `master`, run `make check`, `make test-e2e` and the image scan.
 - **CD** (`.github/workflows/deploy.yml`): runs when `ci` passes on a push to `master` (or by hand). It builds and pushes the image tagged with the commit SHA and `latest`, copies `deploy/` to the VPS over SSH, logs in to GHCR on the VPS with the job's short-lived token (logged out again after the pull), runs `docker compose pull && docker compose up -d` with `RELAY_IMAGE_TAG` set to the SHA, checks the running image is that SHA, then polls `https://relay.alialiabadi.ir/healthz` and fails the job if it is not healthy. Failure output shows container state only, never app logs.
-- Compose hardening: both containers run read-only with all capabilities dropped (Caddy keeps `NET_BIND_SERVICE`) and `no-new-privileges`; logs rotate at 3 × 10 MB per container.
+- Compose hardening: the container runs read-only with all capabilities dropped and `no-new-privileges`; logs rotate at 3 × 10 MB.
 - GitHub secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (dedicated deploy key), `VPS_KNOWN_HOSTS` (the VPS host key line, so SSH never trusts on first use), `VPS_PORT` (optional).
 - Migrations run on startup, so a deploy is just a restart. Migrations must be backward compatible with the previous release for one deploy.
 

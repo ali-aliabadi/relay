@@ -8,7 +8,7 @@ should be one small PR unless noted. Design details are in
 ## Phase 0: one-time setup (ali, by hand)
 
 - [x] Point DNS `relay.alialiabadi.ir` (A/AAAA record) at the VPS
-- [ ] Check whether anything on the VPS already uses ports 80/443 (decides Caddy in compose vs. existing proxy)
+- [x] Check whether anything on the VPS already uses ports 80/443: nginx does, so Relay sits behind it (no Caddy)
 - [ ] Create the Telegram bot with @BotFather and keep the token
 - [ ] On the VPS: create `/opt/relay` and `/opt/relay/.env` with `RELAY_TELEGRAM_BOT_TOKEN` (`chmod 600`)
 - [ ] Generate `RELAY_ENCRYPTION_KEY` (`openssl rand -base64 32`), put it in `.env` and keep a copy in a password manager
@@ -45,7 +45,7 @@ should be one small PR unless noted. Design details are in
 - [x] `relay clients create|list|revoke` (key printed once, SHA-256 hash stored)
 - [x] Bearer-token auth middleware with constant-time comparison; JSON error helper
 - [x] `relay recipients add|list|remove`
-- [x] Rate-limit failed auth per client IP (trusting `X-Forwarded-For` only from Caddy)
+- [x] Rate-limit failed auth per client IP (trusting `X-Forwarded-For` only from the reverse proxy)
 
 ## Phase 4: API
 
@@ -73,7 +73,7 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 6: deploy (MVP done when this is green)
 
-- [x] `deploy/docker-compose.yml` (relay + caddy, named volume `/data`) and `deploy/Caddyfile`
+- [x] `deploy/docker-compose.yml` (relay on host loopback, named volume `/data`) and `deploy/nginx-relay.conf` for the existing nginx
 - [x] `.github/workflows/deploy.yml`: build + push to GHCR, copy `deploy/` over SSH, `docker compose pull && up -d`, check `/healthz`
 - [x] Docker log rotation (`json-file` `max-size`) in compose
 - [x] Full `relay-security-review` skill pass over the whole codebase before first deploy
