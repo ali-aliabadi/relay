@@ -1,7 +1,8 @@
 # Relay
 
 A personal notification gateway. Your apps and scripts send Relay a structured
-message (who, how urgent, which template, what data), and Relay formats it,
+message (who, how urgent, and content like text, a table or an image), and Relay
+formats it for the platform,
 picks the delivery channel, retries on failure and keeps a delivery log.
 
 > **Status:** design phase. No code yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for progress.
@@ -12,7 +13,7 @@ Every script, cron job and side project ends up with its own copy-pasted
 Telegram bot code. Relay puts that in one place:
 
 - **One API** for every app: `POST /v1/messages`.
-- **Templates live in Relay**, so apps send data, not formatted text.
+- **No templates to manage**: apps send content blocks; each platform has one built-in layout.
 - **Urgency-aware routing**: `low` arrives silently, `critical` gets through.
 - **Reliable delivery**: queued in SQLite, retried with backoff, every attempt logged.
 - **Private by default**: message content encrypted at rest, purged after 30 days, never logged.
@@ -27,22 +28,25 @@ curl -X POST https://relay.alialiabadi.ir/v1/messages \
   -d '{
         "to": ["ali"],
         "urgency": "high",
-        "template": "backup.failed",
-        "data": {"host": "nas", "error": "disk full"}
+        "title": "Backup failed",
+        "blocks": [
+          {"type": "text", "text": "Nightly backup of nas stopped."},
+          {"type": "table", "columns": ["Disk", "Used"], "rows": [["sda", "98%"]]}
+        ]
       }'
 # → 202 {"id": "msg_01J...", "status": "queued"}
 ```
 
-No template? Send text directly:
+Block types: `text`, `fields`, `table`, `image`, `code`, `link`. For a plain message:
 
 ```json
-{"to": ["ali"], "title": "Deploy done", "body": "v1.2 is live"}
+{"to": ["ali"], "text": "Deploy done: v1.2 is live"}
 ```
 
 ## How it works
 
 ```
-app → POST /v1/messages → stored as queued → worker → router (urgency) → renderer (template) → Telegram
+app → POST /v1/messages → stored as queued → worker → router (urgency) → Telegram layout → Telegram
 ```
 
 Full design, data model and API: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -34,7 +34,7 @@ should be one small PR unless noted. Design details are in
 ## Phase 2: storage and privacy foundations
 
 - [ ] SQLite open helper (WAL, foreign keys, busy timeout) and goose migrations embedded + run on startup
-- [ ] Initial migration: `clients`, `recipients`, `contacts`, `templates`, `messages`, `deliveries`
+- [ ] Initial migration: `clients`, `recipients`, `contacts`, `messages`, `attachments`, `deliveries`
 - [ ] sqlc config and queries for each table; `make generate`; `sqlc vet` in lint
 - [ ] `internal/crypto`: AES-256-GCM field encryption with key-version prefix, tests incl. tamper detection
 - [ ] Store layer encrypts/decrypts private columns transparently; test that raw DB rows contain no plaintext
@@ -45,30 +45,30 @@ should be one small PR unless noted. Design details are in
 - [ ] `relay clients create|list|revoke` (key printed once, SHA-256 hash stored)
 - [ ] Bearer-token auth middleware with constant-time comparison; JSON error helper
 - [ ] `relay recipients add|list|remove`
-- [ ] `relay templates set|list|show` (set from a file per channel)
 
 ## Phase 4: API
 
 - [ ] Recipients CRUD endpoints
-- [ ] Templates CRUD endpoints and `POST /v1/templates/{key}/preview`
-- [ ] `POST /v1/messages`: validate, resolve recipients/template, idempotency, create deliveries, `202`
+- [ ] `internal/message`: block types (`text`, `fields`, `table`, `image`, `code`, `link`), `text` shorthand, validation and limits
+- [ ] `POST /v1/messages`: validate blocks, resolve recipients, store inline image, idempotency, create deliveries, `202`
 - [ ] `GET /v1/messages/{id}` and `GET /v1/messages` with filters and cursor pagination
+- [ ] `POST /v1/preview` (uses each channel's `Preview`)
 - [ ] `GET /v1/channels`
 
 ## Phase 5: delivery
 
 - [ ] `Channel` interface, `channel.Error` (permanent / retry-after), `fake` channel
-- [ ] Renderer: per-channel body selection, `html/template` vs `text/template`, length limits
 - [ ] Router: urgency + preferences + `channels` override → ordered plan
 - [ ] Worker: claim due deliveries atomically, send, record, backoff, requeue stuck `sending` rows on startup
-- [ ] Telegram channel: `sendMessage` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
+- [ ] Telegram layout: every block type to HTML/`sendPhoto`/inline buttons, escaping, length limits, golden tests
+- [ ] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
 - [ ] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
 - [ ] `relay send` for manual test messages
 - [ ] Retention job: purge content after `RELAY_RETENTION_DAYS`, delete metadata after 180 days
 - [ ] Metrics on the internal listener (`/metrics`, optional pprof) with the metric set from ARCHITECTURE
 - [ ] Integration test: API → worker → fake channel → status `delivered`
 - [ ] testcontainers e2e suite: real image + fake Telegram API container (send, retry, idempotency, restart durability)
-- [ ] Fuzz tests for request parsing and template rendering
+- [ ] Fuzz tests for request parsing, block validation and layouts
 
 ## Phase 6: deploy (MVP done when this is green)
 

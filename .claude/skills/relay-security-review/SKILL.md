@@ -14,7 +14,7 @@ Also run: `make sec` (govulncheck, gitleaks) and `make lint` (includes gosec).
 
 ## 1. Private data never leaks
 
-- [ ] No log line (any level) contains message title/body/`data`, rendered text, contact addresses (chat IDs, phones, emails), API keys, bot tokens or the encryption key. Look at new `slog` calls, `%v`/`%+v` of structs, and errors that wrap provider responses (Telegram errors can echo the text).
+- [ ] No log line (any level) contains message title/blocks, image bytes, rendered text, contact addresses (chat IDs, phones, emails), API keys, bot tokens or the encryption key. Look at new `slog` calls, `%v`/`%+v` of structs, and errors that wrap provider responses (Telegram errors can echo the text).
 - [ ] Errors returned to API clients don't echo private input or internal details (SQL, stack traces, file paths).
 - [ ] Metrics labels contain no recipient, client, message ID or content.
 - [ ] Test fixtures and golden files contain no real chat IDs, phone numbers or tokens.
@@ -22,7 +22,7 @@ Also run: `make sec` (govulncheck, gitleaks) and `make lint` (includes gosec).
 
 ## 2. Encryption and retention
 
-- [ ] New columns holding content or contact details are encrypted via `internal/crypto`.
+- [ ] New columns holding content (blocks, image bytes) or contact details are encrypted via `internal/crypto`.
 - [ ] No plaintext copy of private data is written elsewhere (cache, temp file, extra column, log, metric).
 - [ ] The retention job still covers every place content is stored.
 - [ ] Migrations don't decrypt data into plaintext columns.
@@ -37,9 +37,10 @@ Also run: `make sec` (govulncheck, gitleaks) and `make lint` (includes gosec).
 ## 4. Input handling
 
 - [ ] Request bodies go through the size limit and strict JSON decoding.
-- [ ] Every field is validated (lengths, enums, recipient/template existence) before storage.
+- [ ] Every field is validated (block types and limits, enums, recipient existence) before storage.
 - [ ] SQL only through sqlc queries; no string-built SQL.
-- [ ] Templates: Telegram output uses `html/template`; no `template.HTML` conversions of user data; template execution has a timeout/size cap.
+- [ ] Layouts escape every caller value (`html.EscapeString` for Telegram); no caller-supplied markup reaches a provider.
+- [ ] `link` and `image` URLs are `https` only; Relay never fetches caller URLs itself; inline images are size-capped and type-checked by magic bytes.
 - [ ] Outbound HTTP uses a client with timeouts and a context; provider URLs come from code/config, never from request input (SSRF).
 
 ## 5. Secrets and config

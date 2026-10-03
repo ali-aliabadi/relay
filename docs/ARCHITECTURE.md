@@ -6,15 +6,17 @@ in the same PR.
 
 ## What Relay is
 
-A small self-hosted HTTP service. Apps send it *what* happened (template + data +
-urgency + who). Relay decides *how* to say it and *where* to send it (Telegram
+A small self-hosted HTTP service. Apps send it a structured message (who, how
+urgent, and content blocks such as text, a table or an image). Relay decides *how*
+it looks on each platform and *where* to send it (Telegram
 first; SMS, email and push later), retries on failure, and keeps a log of every
 message and delivery attempt.
 
 ## Principles
 
 - **Personal scale.** One container, one SQLite file, no Redis/Kafka/queues.
-- **Callers never format.** Apps send structured data; templates and per-channel formatting live in Relay.
+- **Callers never format.** Apps send content blocks; each channel has one built-in layout that turns blocks into that platform's format.
+- **No per-message templates.** Adding a new app or a new kind of notification needs no setup in Relay. Layouts are code, one per channel (a second only if a real need appears).
 - **Accept fast, deliver async.** `POST /v1/messages` stores the message and returns `202`; a background worker delivers it.
 - **Channels are plugins.** A channel is one Go package implementing one interface. Nothing else changes when a channel is added.
 - **Everything is observable.** Every message and every delivery attempt is stored and queryable through the API.
@@ -37,7 +39,7 @@ message and delivery attempt.
 | Queries | `sqlc` generates typed Go from SQL files in `internal/store/queries/` |
 | Migrations | `pressly/goose`, SQL files embedded with `embed`, applied on startup |
 | IDs | ULIDs with a type prefix: `msg_01J...`, `rcp_...`, `cli_...` (`oklog/ulid`) |
-| Templates | `html/template` for Telegram (auto-escapes data into Telegram's HTML subset), `text/template` for plain-text channels |
+| Formatting | Per-channel layout code; Telegram output built with `html.EscapeString` on every value into Telegram's HTML subset |
 | Config | Environment variables only |
 | Logging | `log/slog`, JSON output, redaction helpers |
 | Metrics | `prometheus/client_golang` on a separate internal listener |
@@ -55,7 +57,7 @@ message and delivery attempt.
                                  ▼
                      router: urgency + recipient prefs → ordered channel plan
                                  ▼
-                     renderer: template body for channel + data → text
+                     layout: content blocks → channel's format (text, photo, buttons)
                                  ▼
                      channel adapter (telegram) → provider API
                                  ▼
@@ -66,16 +68,18 @@ message and delivery attempt.
 - **store** (`internal/store`): migrations, sqlc queries, transactions. The only package that touches SQL.
 - **worker** (`internal/core/worker.go`): a goroutine that every `RELAY_WORKER_POLL_INTERVAL` claims due deliveries (`status=queued AND next_attempt_at <= now`), sends them, and records the result. Claiming is a single `UPDATE ... RETURNING` so a restart never double-sends a claimed row; rows stuck in `sending` longer than a timeout are requeued on startup.
 - **router** (`internal/core/router.go`): turns (message, recipient) into an ordered list of channels using urgency, the recipient's `channel_preference`, and any explicit `channels` override.
-- **renderer** (`internal/core/render.go`): picks the template body for the channel (falls back to `default`), executes it with `data`, enforces channel limits (Telegram: 4096 chars, truncate with `…`).
+- **message** (`internal/message`): the content block types, their validation and limits. Shared by the API and every layout.
+- **layouts**: each channel package owns its one layout (`internal/channel/telegram/layout.go`), turning blocks into what that platform supports and enforcing its limits (Telegram: 4096 chars per text, 1024 per photo caption; truncate with `…`).
 - **channels** (`internal/channel`): the `Channel` interface and one package per provider. `fake` records sends in memory for tests.
-- **cli** (`cmd/relay`): one binary with subcommands: `serve`, `migrate`, `clients`, `recipients`, `templates`, `send`.
+- **cli** (`cmd/relay`): one binary with subcommands: `serve`, `migrate`, `clients`, `recipients`, `send`.
 
 ### Channel interface
 
 ```go
 type Channel interface {
     Name() string                                  // "telegram"
-    Send(ctx context.Context, to Contact, msg Rendered) (providerID string, err error)
+    Send(ctx context.Context, to Contact, msg message.Message) (providerID string, err error)
+    Preview(msg message.Message) (Preview, error)   // what Send would produce, no network
 }
 ```
 
@@ -90,17 +94,16 @@ clients          id, name, api_key_hash (sha256), created_at, revoked_at
 recipients       id, username (unique), display_name, timezone,
                  channel_preference (JSON array), created_at
 contacts         recipient_id, channel, address (e.g. telegram chat_id), verified_at
-templates        key (unique, e.g. "backup.failed"), description,
-                 bodies (JSON: {"default": "...", "telegram": "..."}), updated_at
-messages         id, client_id, urgency, template_key NULL, title NULL, body NULL,
-                 data (JSON), idempotency_key NULL, status, created_at
+messages         id, client_id, urgency, title NULL, blocks (JSON), source NULL,
+                 idempotency_key NULL, status, created_at
+attachments      id, message_id, content_type, bytes (BLOB), size  -- inline images
                  UNIQUE (client_id, idempotency_key)
 deliveries       id, message_id, recipient_id, channel, status
                  (queued|sending|delivered|failed), attempts, next_attempt_at,
                  provider_message_id, last_error, updated_at
 ```
 
-Columns marked private (`messages.title`, `messages.body`, `messages.data`,
+Private columns (`messages.title`, `messages.blocks`, `attachments.bytes`,
 `contacts.address`) are stored encrypted (see Privacy and security).
 
 A message fans out into one `deliveries` row per recipient per planned channel.
@@ -135,27 +138,52 @@ Errors use one shape: `{"error": {"code": "invalid_request", "message": "..."}}`
 | `GET` | `/v1/messages` | List, filter by `status`, `since`, `limit`, cursor pagination |
 | `GET` `POST` | `/v1/recipients` | List / create recipients |
 | `GET` `PUT` `DELETE` | `/v1/recipients/{username}` | Read / update / delete a recipient |
-| `GET` `POST` | `/v1/templates` | List / create templates |
-| `GET` `PUT` `DELETE` | `/v1/templates/{key}` | Read / update / delete a template |
-| `POST` | `/v1/templates/{key}/preview` | Render every channel body with sample `data`, no send |
+| `POST` | `/v1/preview` | Same body as `/v1/messages`; returns what each channel would send, no delivery |
 | `GET` | `/v1/channels` | Configured channels and their health |
 | `GET` | `/healthz` | Liveness, checks the DB |
 
-Send with a template:
+### Message format
+
+A message is an optional `title` plus a list of content `blocks`. Callers never
+send markup; every value is plain text and the channel's layout formats it.
 
 ```json
 POST /v1/messages
 {
   "to": ["ali"],
   "urgency": "high",
-  "template": "backup.failed",
-  "data": {"host": "nas", "error": "disk full"},
+  "source": "backup-script",
+  "title": "Backup failed",
+  "blocks": [
+    {"type": "text",   "text": "Nightly backup of nas stopped."},
+    {"type": "fields", "items": [{"label": "Host", "value": "nas"}, {"label": "Error", "value": "disk full"}]},
+    {"type": "table",  "columns": ["Disk", "Used"], "rows": [["sda", "98%"], ["sdb", "41%"]]},
+    {"type": "image",  "url": "https://grafana.example/render/disk.png", "caption": "Disk usage"},
+    {"type": "code",   "text": "rsync: write failed: No space left on device"},
+    {"type": "link",   "text": "Open dashboard", "url": "https://grafana.example/d/disks"}
+  ],
   "idempotency_key": "backup-nas-2026-10-03"
 }
 ```
 
-Send without a template: `{"to": ["ali"], "title": "Deploy done", "body": "v1.2 is live"}`.
-`urgency` defaults to `normal`. Unknown recipients or templates are a `422`.
+Shorthand for the common case: `{"to": ["ali"], "text": "Deploy done: v1.2 is live"}`
+is the same as one `text` block.
+
+| Block | Fields | Telegram layout |
+|---|---|---|
+| `text` | `text` | Paragraph |
+| `fields` | `items[{label, value}]` | `<b>Label:</b> value` lines |
+| `table` | `columns`, `rows` | Monospaced `<pre>` table, cells padded and truncated to fit |
+| `image` | `url` **or** `base64` + `content_type`, optional `caption` | `sendPhoto`; title + text become the caption when short enough, otherwise a follow-up message |
+| `code` | `text` | `<pre>` block |
+| `link` | `text`, `url` (https only) | Inline keyboard button |
+
+Rules: `title` is shown bold at the top; `source` as a small footer; `critical`
+adds 🚨 to the title. Limits: 20 blocks, 50 table rows × 8 columns, 1 image in the
+MVP (inline `base64` up to 5 MB, PNG/JPEG only; use `base64` for images on private
+hosts, since Telegram fetches `url` images itself). A channel that can't show a block
+falls back to its plain-text form (e.g. a table as aligned text for SMS).
+`urgency` defaults to `normal`. Unknown recipients or invalid blocks are a `422`.
 
 ## Telegram setup
 
@@ -177,19 +205,19 @@ The MVP sends only; it does not run a Telegram webhook.
 | `RELAY_ENCRYPTION_KEY` | — (required) | 32-byte base64 key for private columns. Losing it makes stored content unreadable |
 | `RELAY_RETENTION_DAYS` | `30` | Message content is purged after this many days; metadata is kept |
 | `RELAY_METRICS_ADDR` | `127.0.0.1:9090` | Internal listener for `/metrics` (and `/debug/pprof` when `RELAY_PPROF=true`) |
-| `RELAY_MAX_BODY_BYTES` | `65536` | Request body size limit |
+| `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image) |
 
 ## Privacy and security
 
 Relay stores who gets notified about what, which is private. Threat model: a
 leaked API key, a leaked DB file or backup, logs shipped somewhere, a malicious
-template or payload, and a compromised dependency.
+payload (markup injection, oversized or fake images), and a compromised dependency.
 
 - **Encryption at rest:** private columns are encrypted with AES-256-GCM (random nonce per value, key version byte prefix for future rotation). Search never needs these columns.
-- **Retention:** a daily job in the worker nulls title/body/data of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days.
+- **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days.
 - **Transport:** HTTPS only via Caddy; HSTS. Relay itself listens on the compose network only.
 - **Auth:** per-client API keys (`rk_` + 32 random bytes), SHA-256 hashed, constant-time compare, revocable. Failed auth is rate-limited per IP.
-- **Input handling:** body size limit, strict JSON decoding, template data rendered through auto-escaping templates, Telegram output limited to its HTML subset.
+- **Input handling:** body size limit, strict JSON decoding, block limits, every value HTML-escaped by the Telegram layout, `link`/`image` URLs restricted to `https`, Relay fetches no URLs itself (Telegram fetches image URLs), inline images type-checked by magic bytes.
 - **Logging:** content and contact addresses are never logged (see Observability).
 - **Container:** distroless/static non-root image, read-only root filesystem, only `/data` writable.
 - **Supply chain:** `govulncheck` and `gitleaks` in CI, `trivy` scan of the image, Dependabot for Go modules, Actions and the base image; Actions pinned by commit SHA.
@@ -225,7 +253,7 @@ Everything runs through the Makefile, locally and in CI.
 | Unit | `*_test.go` next to code | Router, renderer, retry, redaction, crypto, config | `make test` |
 | Integration | `*_test.go`, real deps in-process | SQLite in `t.TempDir()`, API via `httptest`, Telegram adapter against an `httptest` fake Bot API | `make test` |
 | End-to-end | `test/e2e`, `//go:build e2e` | testcontainers: the real image + a fake Telegram API container, driven through the public API (send, retry, idempotency, restart durability) | `make test-e2e`, CI |
-| Fuzz | `Fuzz*` tests | JSON request parsing, template rendering | CI short run |
+| Fuzz | `Fuzz*` tests | JSON request parsing, block validation, layouts | CI short run |
 
 SQLite is embedded, so integration tests use a real file rather than a container;
 testcontainers is used where a real process boundary matters (the shipped image,

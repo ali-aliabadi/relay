@@ -5,11 +5,11 @@ Guidance for Claude Code (and other agents) working in this repo, locally or in 
 ## What this is
 
 Relay is ali's personal notification gateway: a small Go HTTP service where apps
-`POST /v1/messages` with recipients, urgency, a template key and data, and Relay
-renders the message, routes it to a channel (Telegram in the MVP), retries and logs it.
+`POST /v1/messages` with recipients, urgency and content blocks (text, fields, table,
+image, code, link), and Relay formats them with the channel's one built-in layout, routes it to a channel (Telegram in the MVP), retries and logs it.
 Users are ali and ali's wife, registered by hand.
 
-**Relay handles private data.** Message content, `data` payloads and contact details
+**Relay handles private data.** Message content, images and contact details
 (Telegram chat IDs, later phone numbers) are personal. Privacy rules below are not optional.
 
 - Design reference: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before non-trivial work.
@@ -26,10 +26,11 @@ SMS is deliberately **not** in the MVP; the provider is undecided.
 ## Layout
 
 ```
-cmd/relay/            main: subcommands serve, migrate, clients, recipients, templates, send
+cmd/relay/            main: subcommands serve, migrate, clients, recipients, send
 internal/api/         handlers, auth middleware, request/response types
 internal/core/        router, renderer, worker, retry policy, retention
-internal/channel/     channel.go (interface + Error), telegram/, fake/
+internal/message/     content block types, validation, limits
+internal/channel/     channel.go (interface + Error), telegram/ (client + layout), fake/
 internal/store/       migrations/*.sql, queries/*.sql, generated sqlc code
 internal/crypto/      field encryption (AES-256-GCM) for private columns
 internal/obs/         logging setup, redaction, metrics, request IDs
@@ -79,7 +80,8 @@ Small files keep agent context focused and diffs reviewable.
 - **Context:** every function doing I/O takes `ctx context.Context` first.
 - **Dependencies:** prefer the stdlib. Adding a module needs a one-line reason in the PR description.
 - **Migrations:** never edit a merged migration; add a new one. Keep them compatible with the previous release.
-- **Templates:** Telegram bodies use `html/template` (Telegram HTML subset); plain-text channels use `text/template`.
+- **No templates.** There are no per-app or per-message templates. Each channel has one layout in code that renders the generic blocks; don't add a template store or per-app formatting. New needs become a new block type (ask ali first).
+- **Layouts escape everything:** every caller value is escaped (`html.EscapeString` for Telegram); callers never send markup.
 - **No `fmt.Print*` or `log.*`** outside `cmd/`; use the injected `*slog.Logger` (enforced by `forbidigo`).
 
 ## Testing
@@ -89,15 +91,15 @@ Three levels, all required for new behaviour:
 - **Unit** (`foo_test.go`, no build tag): table-driven, pure logic (router, renderer, retry, redaction, config). Use the `fake` channel and an injected clock.
 - **Integration** (no build tag, still `make test`): real SQLite in `t.TempDir()`, API through `httptest` against the real router and store, Telegram channel against an `httptest` server that mimics the Bot API.
 - **End-to-end** (`//go:build e2e`, `make test-e2e`): testcontainers starts the real Docker image plus a fake Telegram API container, then drives the public API. Later channels add containers (e.g. Mailpit for email).
-- Also: fuzz tests for request parsing and template rendering; golden files (`testdata/*.golden`, `-update` flag) for rendered output.
+- Also: fuzz tests for request parsing and layouts; golden files (`testdata/*.golden`, `-update` flag) for each layout's output per block type.
 - Never call real Telegram or any real provider in tests. Never put real chat IDs, phone numbers or tokens in fixtures.
 - Every bug fix comes with a test that fails before the fix.
 - Cloud sessions may have no Docker: run `make test` and say e2e was not run, rather than skipping it silently.
 
 ## Privacy and security (always on)
 
-- **Never log** message title/body/`data`, rendered text, contact addresses, API keys or tokens, at any level. Log IDs instead. Use `obs.Redact` helpers for anything user-supplied.
-- **Encrypt at rest:** message title/body/`data` and contact addresses go through `internal/crypto` before hitting SQLite. Key from `RELAY_ENCRYPTION_KEY`.
+- **Never log** message title/blocks, images, rendered text, contact addresses, API keys or tokens, at any level. Log IDs instead. Use `obs.Redact` helpers for anything user-supplied.
+- **Encrypt at rest:** message title/blocks, image bytes and contact addresses go through `internal/crypto` before hitting SQLite. Key from `RELAY_ENCRYPTION_KEY`.
 - **Retention:** message content is purged after `RELAY_RETENTION_DAYS`; don't add new places that keep content longer.
 - **Secrets:** never commit them. Runtime secrets live in `/opt/relay/.env` on the VPS; CI secrets in GitHub. gitleaks runs in CI.
 - **API keys:** shown once, stored as SHA-256 hashes, compared in constant time.
