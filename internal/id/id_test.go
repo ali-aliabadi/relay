@@ -26,3 +26,15 @@ func TestNew(t *testing.T) {
 		t.Error("same-millisecond ids collide")
 	}
 }
+
+func TestSameMillisecondOrder(t *testing.T) {
+	t0 := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	prev := New(Message, t0)
+	for range 1000 {
+		next := New(Message, t0)
+		if next <= prev {
+			t.Fatalf("ids in one millisecond out of order: %s then %s", prev, next)
+		}
+		prev = next
+	}
+}
