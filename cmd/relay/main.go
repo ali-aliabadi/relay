@@ -3,11 +3,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
 	"syscall"
+	_ "time/tzdata" // the distroless image has no zoneinfo; recipients have timezones
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -16,9 +18,11 @@ var version = "dev"
 const usage = `Usage: relay <command>
 
 Commands:
-  serve     run the HTTP API and delivery worker
-  migrate   apply database migrations and exit (serve also does this)
-  version   print the version
+  serve        run the HTTP API and delivery worker
+  migrate      apply database migrations and exit (serve also does this)
+  clients      create, list and revoke API clients
+  recipients   add, list and remove recipients
+  version      print the version
 `
 
 func main() {
@@ -47,6 +51,10 @@ func run(ctx context.Context, args []string, lookup func(string) (string, bool),
 			return 1
 		}
 		return 0
+	case "clients":
+		return admin(env{ctx, lookup, stdout, stderr}, args[1:], clientsCmd, clientsUsage)
+	case "recipients":
+		return admin(env{ctx, lookup, stdout, stderr}, args[1:], recipientsCmd, recipientsUsage)
 	case "version":
 		fmt.Fprintln(stdout, version)
 		return 0
@@ -56,5 +64,20 @@ func run(ctx context.Context, args []string, lookup func(string) (string, bool),
 	default:
 		fmt.Fprintf(stderr, "relay: unknown command %q\n\n%s", args[0], usage)
 		return 2
+	}
+}
+
+// admin runs an admin subcommand and maps its error to an exit code.
+func admin(e env, args []string, cmd func(env, []string) error, usage string) int {
+	err := cmd(e, args)
+	switch {
+	case err == nil:
+		return 0
+	case errors.Is(err, errUsage):
+		fmt.Fprint(e.stderr, usage)
+		return 2
+	default:
+		fmt.Fprintf(e.stderr, "relay: %v\n", err)
+		return 1
 	}
 }

@@ -94,7 +94,7 @@ func TestHealthz(t *testing.T) {
 
 func TestUnknownRouteUsesErrorShape(t *testing.T) {
 	srv := newServer(t, nil, &bytes.Buffer{})
-	resp, body := get(t, srv.URL+"/v1/nope")
+	resp, body := get(t, srv.URL+"/nope")
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("status = %d", resp.StatusCode)
 	}

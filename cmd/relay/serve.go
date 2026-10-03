@@ -12,6 +12,7 @@ import (
 
 	"github.com/ali-aliabadi/relay/internal/api"
 	"github.com/ali-aliabadi/relay/internal/config"
+	"github.com/ali-aliabadi/relay/internal/core"
 	"github.com/ali-aliabadi/relay/internal/obs"
 )
 
@@ -47,6 +48,7 @@ func serve(ctx context.Context, lookup config.LookupFunc, logOut io.Writer, ln n
 			Logger:       logger,
 			Clock:        time.Now,
 			Health:       st.Ping,
+			Auth:         core.NewClients(st),
 			MaxBodyBytes: cfg.MaxBodyBytes,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

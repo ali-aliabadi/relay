@@ -42,9 +42,10 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 3: admin CLI and auth
 
-- [ ] `relay clients create|list|revoke` (key printed once, SHA-256 hash stored)
-- [ ] Bearer-token auth middleware with constant-time comparison; JSON error helper
-- [ ] `relay recipients add|list|remove`
+- [x] `relay clients create|list|revoke` (key printed once, SHA-256 hash stored)
+- [x] Bearer-token auth middleware with constant-time comparison; JSON error helper
+- [x] `relay recipients add|list|remove`
+- [ ] Rate-limit failed auth per client IP (trusting `X-Forwarded-For` only from Caddy)
 
 ## Phase 4: API
 

@@ -18,13 +18,19 @@ type Deps struct {
 	Logger       *slog.Logger
 	Clock        func() time.Time
 	Health       HealthFunc
+	Auth         Authenticator
 	MaxBodyBytes int64
 }
 
 // NewHandler returns the public HTTP handler with every route registered.
 func NewHandler(d Deps) http.Handler {
+	// Every /v1 route is wrapped in authed; only /healthz is public. Routes are
+	// registered on one mux so the request log sees the full route pattern.
+	authed := func(h http.Handler) http.Handler { return requireAuth(d.Logger, d.Auth, h) }
+
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", healthz(d.Logger, d.Health))
+	mux.Handle("/v1/", authed(notFound()))
 	mux.Handle("/", notFound())
 	return obs.Middleware(d.Logger, d.Clock, limitBody(d.MaxBodyBytes, mux))
 }
