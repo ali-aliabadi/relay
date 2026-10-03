@@ -1,0 +1,30 @@
+# Production stack on the VPS, in /opt/relay next to a hand-made .env.
+# The deploy workflow copies this file on every deploy and sets
+# RELAY_IMAGE_TAG to the commit being deployed.
+#
+# TLS and the public hostname are handled by the VPS's existing nginx (see
+# deploy/nginx-relay.conf); Relay only listens on the host's loopback.
+name: relay
+
+services:
+  relay:
+    image: ghcr.io/ali-aliabadi/relay:${RELAY_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      RELAY_TRUST_FORWARDED_FOR: "true" # only nginx on this host can reach Relay
+    ports:
+      - "127.0.0.1:${RELAY_HOST_PORT:-18080}:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - relay-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  relay-data:

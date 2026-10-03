@@ -19,7 +19,7 @@ Users are ali and ali's wife, registered by hand.
 
 Go (stdlib `net/http`, no web framework) · SQLite via `modernc.org/sqlite` (pure Go, keep `CGO_ENABLED=0`)
 · `sqlc` for queries · `goose` migrations embedded and run on startup · `log/slog` · Prometheus metrics
-· env-var config · Docker + docker compose + Caddy on a VPS · GitHub Actions deploy on push to `master`.
+· env-var config · Docker + docker compose on a VPS behind its existing nginx · GitHub Actions deploy on push to `master`.
 
 SMS is deliberately **not** in the MVP; the provider is undecided.
 
@@ -38,7 +38,7 @@ internal/obs/         logging setup, redaction, metrics, request IDs
 internal/config/      env parsing
 test/e2e/             testcontainers tests against the built Docker image
 scripts/              check-file-length.sh and other repo checks
-deploy/               docker-compose.yml, Caddyfile (copied to the VPS by CD)
+deploy/               docker-compose.yml (copied to the VPS by CD), nginx-relay.conf (installed by hand)
 .github/workflows/    ci.yml, deploy.yml
 .claude/skills/       project skills (relay-security-review)
 ```
@@ -114,7 +114,7 @@ Three levels, all required for new behaviour:
 - At `info`: one line per HTTP request (request_id, client, method, route pattern, status, duration) and one per delivery outcome (message_id, delivery_id, channel, result, attempt). Nothing per poll tick, nothing on success paths inside loops.
 - `warn` for retried failures, `error` only for things needing a human. Repeated identical errors are rate-limited.
 - `debug` may add detail but still follows the never-log rules above.
-- Metrics at `/metrics` (internal only, not exposed through Caddy) with **low-cardinality labels only** (channel, urgency, status; never recipient, client key or message ID).
+- Metrics at `/metrics` (internal only, not exposed through nginx) with **low-cardinality labels only** (channel, urgency, status; never recipient, client key or message ID).
 - Request IDs flow through `context` and appear in every related log line and in the `X-Request-ID` response header.
 
 ## Working agreement

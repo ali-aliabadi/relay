@@ -53,7 +53,7 @@ Full design, data model and API: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Stack
 
-Go · `net/http` · SQLite (`modernc.org/sqlite`) · sqlc · goose · slog + Prometheus · golangci-lint · testcontainers · Docker · Caddy · GitHub Actions
+Go · `net/http` · SQLite (`modernc.org/sqlite`) · sqlc · goose · slog + Prometheus · golangci-lint · testcontainers · Docker · nginx · GitHub Actions
 
 ## Running locally
 
@@ -66,21 +66,29 @@ make run                          # starts on :8080 with ./data/relay.db
 curl localhost:8080/healthz       # {"status":"ok"}
 ```
 
-Coming with later roadmap phases:
+Then register a recipient and send yourself a message (needs `RELAY_TELEGRAM_BOT_TOKEN`):
 
 ```bash
 go run ./cmd/relay clients create my-script     # prints an API key once
 go run ./cmd/relay recipients add ali --name "Ali"
 go run ./cmd/relay recipients link ali          # then send /start to the bot
+go run ./cmd/relay send --to ali "hello"        # with `make run` going in another terminal
 ```
 
 Common commands: `make check` (everything CI runs), `make test`, `make test-e2e`, `make lint`, `make build`, `make help` for the rest.
 
 ## Deployment
 
-Pushing to `master` deploys: GitHub Actions builds the image, pushes it to
-`ghcr.io/ali-aliabadi/relay`, SSHes into the VPS and runs `docker compose up -d`
-in `/opt/relay`. The service is served at `https://relay.alialiabadi.ir` behind Caddy.
+Merging to `master` deploys once CI passes: GitHub Actions builds the image,
+pushes it to `ghcr.io/ali-aliabadi/relay`, copies `deploy/` to `/opt/relay` on the
+VPS over SSH and runs `docker compose up -d` there. The service is served at
+`https://relay.alialiabadi.ir` through the VPS's existing nginx (site config in
+`deploy/nginx-relay.conf`, installed once by hand). On the VPS, admin commands run inside
+the container:
+
+```bash
+cd /opt/relay && docker compose exec relay relay clients create my-app
+```
 
 One-time setup is listed under "Phase 0" in [docs/ROADMAP.md](docs/ROADMAP.md).
 

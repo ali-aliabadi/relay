@@ -1,0 +1,6 @@
+[
+  {
+    "kind": "text",
+    "text": "<pre>Disk    Used Mount point\n─────────────────────────────────\nsda     98%  /\nsdb     41%  /srv/a-very-long-mo…\nnvme0n1 7%   /home /x</pre>"
+  }
+]

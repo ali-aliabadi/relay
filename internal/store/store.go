@@ -35,6 +35,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 		"foreign_keys(1)",
 		"busy_timeout(5000)",
 		"synchronous(NORMAL)",
+		"secure_delete(1)", // deleted content is overwritten, not left in free pages
 	} {
 		q.Add("_pragma", p)
 	}

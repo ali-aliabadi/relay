@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ type Config struct {
 	Addr               string
 	DBPath             string
 	TelegramBotToken   obs.Secret
+	TelegramAPIURL     string
 	WorkerPollInterval time.Duration
 	LogLevel           slog.Level
 	EncryptionKey      obs.SecretBytes
@@ -28,6 +30,7 @@ type Config struct {
 	MetricsAddr        string
 	Pprof              bool
 	MaxBodyBytes       int64
+	TrustForwardedFor  bool
 }
 
 // LookupFunc matches os.LookupEnv so tests can inject an environment.
@@ -41,6 +44,7 @@ func Load(lookup LookupFunc) (Config, error) {
 		Addr:               p.str("RELAY_ADDR", ":8080"),
 		DBPath:             p.str("RELAY_DB_PATH", "/data/relay.db"),
 		TelegramBotToken:   obs.Secret(p.str("RELAY_TELEGRAM_BOT_TOKEN", "")),
+		TelegramAPIURL:     p.str("RELAY_TELEGRAM_API_URL", "https://api.telegram.org"),
 		WorkerPollInterval: p.duration("RELAY_WORKER_POLL_INTERVAL", time.Second),
 		LogLevel:           p.level("RELAY_LOG_LEVEL", slog.LevelInfo),
 		EncryptionKey:      p.key("RELAY_ENCRYPTION_KEY"),
@@ -48,6 +52,7 @@ func Load(lookup LookupFunc) (Config, error) {
 		MetricsAddr:        p.str("RELAY_METRICS_ADDR", "127.0.0.1:9090"),
 		Pprof:              p.boolean("RELAY_PPROF", false),
 		MaxBodyBytes:       int64(p.integer("RELAY_MAX_BODY_BYTES", 7<<20)),
+		TrustForwardedFor:  p.boolean("RELAY_TRUST_FORWARDED_FOR", false),
 	}
 	cfg.validate(&p)
 	if len(p.errs) > 0 {
@@ -62,6 +67,9 @@ func (c *Config) validate(p *parser) {
 	}
 	if c.DBPath == "" {
 		p.fail("RELAY_DB_PATH", "must not be empty")
+	}
+	if u, err := url.Parse(c.TelegramAPIURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		p.fail("RELAY_TELEGRAM_API_URL", "must be an http(s) URL")
 	}
 	if c.WorkerPollInterval <= 0 {
 		p.fail("RELAY_WORKER_POLL_INTERVAL", "must be positive")
@@ -83,12 +91,14 @@ func (c Config) LogValue() slog.Value {
 		slog.String("addr", c.Addr),
 		slog.String("db_path", c.DBPath),
 		slog.Bool("telegram_enabled", c.TelegramBotToken != ""),
+		slog.String("telegram_api_url", c.TelegramAPIURL),
 		slog.Duration("worker_poll_interval", c.WorkerPollInterval),
 		slog.String("log_level", c.LogLevel.String()),
 		slog.Int("retention_days", c.RetentionDays),
 		slog.String("metrics_addr", c.MetricsAddr),
 		slog.Bool("pprof", c.Pprof),
 		slog.Int64("max_body_bytes", c.MaxBodyBytes),
+		slog.Bool("trust_forwarded_for", c.TrustForwardedFor),
 	)
 }
 

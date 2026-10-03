@@ -8,12 +8,12 @@ should be one small PR unless noted. Design details are in
 ## Phase 0: one-time setup (ali, by hand)
 
 - [x] Point DNS `relay.alialiabadi.ir` (A/AAAA record) at the VPS
-- [ ] Check whether anything on the VPS already uses ports 80/443 (decides Caddy in compose vs. existing proxy)
+- [x] Check whether anything on the VPS already uses ports 80/443: nginx does, so Relay sits behind it (no Caddy)
 - [ ] Create the Telegram bot with @BotFather and keep the token
 - [ ] On the VPS: create `/opt/relay` and `/opt/relay/.env` with `RELAY_TELEGRAM_BOT_TOKEN` (`chmod 600`)
 - [ ] Generate `RELAY_ENCRYPTION_KEY` (`openssl rand -base64 32`), put it in `.env` and keep a copy in a password manager
 - [ ] Create a deploy SSH key pair; add the public key to the deploy user's `authorized_keys` on the VPS
-- [ ] Add GitHub secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (and `VPS_PORT` if not 22)
+- [ ] Add GitHub secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS` (output of `ssh-keyscan <host>`, checked against the VPS) and `VPS_PORT` if not 22
 - [ ] Protect `master` (require PRs and green CI)
 
 ## Phase 1: skeleton and tooling
@@ -42,40 +42,41 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 3: admin CLI and auth
 
-- [ ] `relay clients create|list|revoke` (key printed once, SHA-256 hash stored)
-- [ ] Bearer-token auth middleware with constant-time comparison; JSON error helper
-- [ ] `relay recipients add|list|remove`
+- [x] `relay clients create|list|revoke` (key printed once, SHA-256 hash stored)
+- [x] Bearer-token auth middleware with constant-time comparison; JSON error helper
+- [x] `relay recipients add|list|remove`
+- [x] Rate-limit failed auth per client IP (trusting `X-Forwarded-For` only from the reverse proxy)
 
 ## Phase 4: API
 
-- [ ] Recipients CRUD endpoints
-- [ ] `internal/message`: block types (`text`, `fields`, `table`, `image`, `code`, `link`), `text` shorthand, validation and limits
-- [ ] `POST /v1/messages`: validate blocks, resolve recipients, store inline image, idempotency, create deliveries, `202`
-- [ ] `GET /v1/messages/{id}` and `GET /v1/messages` with filters and cursor pagination
-- [ ] `POST /v1/preview` (uses each channel's `Preview`)
-- [ ] `GET /v1/channels`
+- [x] Recipients CRUD endpoints
+- [x] `internal/message`: block types (`text`, `fields`, `table`, `image`, `code`, `link`), `text` shorthand, validation and limits
+- [x] `POST /v1/messages`: validate blocks, resolve recipients, store inline image, idempotency, create deliveries, `202`
+- [x] `GET /v1/messages/{id}` and `GET /v1/messages` with filters and cursor pagination
+- `POST /v1/preview` and `GET /v1/channels` moved to Phase 5: they need the `Channel` interface and the Telegram layout
 
 ## Phase 5: delivery
 
-- [ ] `Channel` interface, `channel.Error` (permanent / retry-after), `fake` channel
-- [ ] Router: urgency + preferences + `channels` override → ordered plan
-- [ ] Worker: claim due deliveries atomically, send, record, backoff, requeue stuck `sending` rows on startup
-- [ ] Telegram layout: every block type to HTML/`sendPhoto`/inline buttons, escaping, length limits, golden tests
-- [ ] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
-- [ ] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
-- [ ] `relay send` for manual test messages
-- [ ] Retention job: purge content after `RELAY_RETENTION_DAYS`, delete metadata after 180 days
-- [ ] Metrics on the internal listener (`/metrics`, optional pprof) with the metric set from ARCHITECTURE
-- [ ] Integration test: API → worker → fake channel → status `delivered`
-- [ ] testcontainers e2e suite: real image + fake Telegram API container (send, retry, idempotency, restart durability)
-- [ ] Fuzz tests for request parsing, block validation and layouts
+- [x] `Channel` interface, `channel.Error` (permanent / retry-after), `fake` channel
+- [x] Router: urgency + preferences + `channels` override → ordered plan
+- [x] Worker: claim due deliveries atomically, send, record, backoff, requeue stuck `sending` rows on startup
+- [x] Telegram layout: every block type to HTML/`sendPhoto`/inline buttons, escaping, length limits, golden tests
+- [x] `POST /v1/preview` (uses each channel's `Preview`) and `GET /v1/channels`
+- [x] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
+- [x] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
+- [x] `relay send` for manual test messages
+- [x] Retention job: purge content after `RELAY_RETENTION_DAYS`, delete metadata after 180 days
+- [x] Metrics on the internal listener (`/metrics`, optional pprof) with the metric set from ARCHITECTURE
+- [x] Integration test: API → worker → fake channel → status `delivered`
+- [x] testcontainers e2e suite: real image + fake Telegram API container (send, retry, idempotency, restart durability)
+- [x] Fuzz tests for request parsing, block validation and layouts
 
 ## Phase 6: deploy (MVP done when this is green)
 
-- [ ] `deploy/docker-compose.yml` (relay + caddy, named volume `/data`) and `deploy/Caddyfile`
-- [ ] `.github/workflows/deploy.yml`: build + push to GHCR, copy `deploy/` over SSH, `docker compose pull && up -d`, check `/healthz`
-- [ ] Docker log rotation (`json-file` `max-size`) in compose
-- [ ] Full `relay-security-review` skill pass over the whole codebase before first deploy
+- [x] `deploy/docker-compose.yml` (relay on host loopback, named volume `/data`) and `deploy/nginx-relay.conf` for the existing nginx
+- [x] `.github/workflows/deploy.yml`: build + push to GHCR, copy `deploy/` over SSH, `docker compose pull && up -d`, check `/healthz`
+- [x] Docker log rotation (`json-file` `max-size`) in compose
+- [x] Full `relay-security-review` skill pass over the whole codebase before first deploy
 - [ ] First production deploy; register ali and ali's wife; send a real message to each
 - [ ] README "Running locally" verified against reality
 

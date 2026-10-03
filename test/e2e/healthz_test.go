@@ -20,23 +20,25 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// startRelay runs the image under test with a throwaway key and a read-only root filesystem.
-func startRelay(t *testing.T) testcontainers.Container {
+// startRelay runs the image under test with a throwaway key and a read-only
+// root filesystem. opts add to (and may override) those defaults.
+func startRelay(t *testing.T, opts ...testcontainers.ContainerCustomizer) testcontainers.Container {
 	t.Helper()
 	image := os.Getenv("RELAY_E2E_IMAGE")
 	if image == "" {
 		t.Fatal("RELAY_E2E_IMAGE is not set; run `make test-e2e`")
 	}
 	key := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))
-	ctr, err := testcontainers.Run(t.Context(), image,
+	base := []testcontainers.ContainerCustomizer{
 		testcontainers.WithExposedPorts("8080/tcp"),
 		testcontainers.WithEnv(map[string]string{"RELAY_ENCRYPTION_KEY": key}),
 		testcontainers.WithHostConfigModifier(func(hc *container.HostConfig) {
 			hc.ReadonlyRootfs = true
 		}),
 		testcontainers.WithWaitStrategy(wait.ForHTTP("/healthz").WithPort("8080/tcp").
-			WithStartupTimeout(30*time.Second)),
-	)
+			WithStartupTimeout(30 * time.Second)),
+	}
+	ctr, err := testcontainers.Run(t.Context(), image, append(base, opts...)...)
 	testcontainers.CleanupContainer(t, ctr)
 	if err != nil {
 		t.Fatalf("starting relay: %v", err)

@@ -31,11 +31,13 @@ func TestLoadDefaults(t *testing.T) {
 		{"Addr", cfg.Addr, ":8080"},
 		{"DBPath", cfg.DBPath, "/data/relay.db"},
 		{"TelegramBotToken", cfg.TelegramBotToken.Reveal(), ""},
+		{"TelegramAPIURL", cfg.TelegramAPIURL, "https://api.telegram.org"},
 		{"WorkerPollInterval", cfg.WorkerPollInterval, time.Second},
 		{"LogLevel", cfg.LogLevel, slog.LevelInfo},
 		{"RetentionDays", cfg.RetentionDays, 30},
 		{"MetricsAddr", cfg.MetricsAddr, "127.0.0.1:9090"},
 		{"Pprof", cfg.Pprof, false},
+		{"TrustForwardedFor", cfg.TrustForwardedFor, false},
 		{"MaxBodyBytes", cfg.MaxBodyBytes, int64(7340032)},
 		{"len(EncryptionKey)", len(cfg.EncryptionKey), EncryptionKeySize},
 	}
@@ -58,6 +60,7 @@ func TestLoadOverrides(t *testing.T) {
 		"RELAY_METRICS_ADDR":         "",
 		"RELAY_PPROF":                "true",
 		"RELAY_MAX_BODY_BYTES":       "1024",
+		"RELAY_TRUST_FORWARDED_FOR":  "true",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -65,7 +68,7 @@ func TestLoadOverrides(t *testing.T) {
 	if cfg.Addr != "127.0.0.1:9999" || cfg.DBPath != "./data/relay.db" ||
 		cfg.TelegramBotToken.Reveal() != "fake-token" || cfg.WorkerPollInterval != 250*time.Millisecond ||
 		cfg.LogLevel != slog.LevelDebug || cfg.RetentionDays != 7 || cfg.MetricsAddr != "" ||
-		!cfg.Pprof || cfg.MaxBodyBytes != 1024 {
+		!cfg.Pprof || cfg.MaxBodyBytes != 1024 || !cfg.TrustForwardedFor {
 		t.Errorf("overrides not applied: %+v", cfg)
 	}
 }
@@ -88,6 +91,7 @@ func TestLoadErrors(t *testing.T) {
 		{"zero body", map[string]string{"RELAY_MAX_BODY_BYTES": "0"}, "RELAY_MAX_BODY_BYTES must be positive"},
 		{"empty addr", map[string]string{"RELAY_ADDR": ""}, "RELAY_ADDR must not be empty"},
 		{"empty db", map[string]string{"RELAY_DB_PATH": " "}, "RELAY_DB_PATH must not be empty"},
+		{"bad telegram url", map[string]string{"RELAY_TELEGRAM_API_URL": "ftp://x"}, "RELAY_TELEGRAM_API_URL must be"},
 		{"same addrs", map[string]string{"RELAY_ADDR": ":1", "RELAY_METRICS_ADDR": ":1"}, "must differ"},
 	}
 	for _, tt := range tests {

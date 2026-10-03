@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "text",
+    "text": "See:",
+    "buttons": [
+      {
+        "text": "Open dashboard",
+        "url": "https://grafana.example/d/disks"
+      },
+      {
+        "text": "Runbook",
+        "url": "https://wiki.example/runbook?a=1&b=2"
+      }
+    ]
+  }
+]

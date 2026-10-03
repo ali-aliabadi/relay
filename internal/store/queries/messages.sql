@@ -20,3 +20,18 @@ LIMIT sqlc.arg('limit');
 
 -- name: UpdateMessageStatus :exec
 UPDATE messages SET status = ? WHERE id = ?;
+
+-- name: GetMessageByID :one
+SELECT * FROM messages WHERE id = ?;
+
+-- name: RedactMessagesBefore :execrows
+-- Retention: drop content, keep metadata.
+UPDATE messages SET title = NULL, blocks = NULL, redacted_at = sqlc.arg('now')
+WHERE created_at < sqlc.arg('cutoff') AND redacted_at IS NULL;
+
+-- name: DeleteAttachmentsBefore :execrows
+DELETE FROM attachments WHERE message_id IN (SELECT m.id FROM messages m WHERE m.created_at < sqlc.arg('cutoff'));
+
+-- name: DeleteMessagesBefore :execrows
+-- Deliveries and attachments go with them (ON DELETE CASCADE).
+DELETE FROM messages WHERE created_at < sqlc.arg('cutoff');

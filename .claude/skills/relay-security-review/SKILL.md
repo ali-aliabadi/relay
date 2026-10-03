@@ -32,7 +32,7 @@ Also run: `make sec` (govulncheck, gitleaks) and `make lint` (includes gosec).
 - [ ] Every new `/v1` route sits behind the auth middleware. Only `/healthz` is public.
 - [ ] Key comparison stays constant-time; keys are never stored or logged in plaintext.
 - [ ] A client can only read messages it created (no ID enumeration across clients).
-- [ ] `/metrics` and pprof stay on the internal listener, not routed through Caddy.
+- [ ] `/metrics` and pprof stay on the internal listener, not routed through nginx.
 
 ## 4. Input handling
 
