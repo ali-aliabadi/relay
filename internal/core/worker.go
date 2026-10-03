@@ -38,6 +38,9 @@ type Worker struct {
 // cancelled. Nothing is logged per poll; only delivery outcomes are.
 func (w *Worker) Run(ctx context.Context) error {
 	n, err := w.Store.RequeueSending(ctx)
+	if ctx.Err() != nil {
+		return nil // shut down during startup: nothing was claimed, so a clean stop
+	}
 	if err != nil {
 		return err
 	}
@@ -50,7 +53,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		for {
 			// Drain full batches without waiting for the next tick.
 			claimed, err := w.Tick(ctx)
-			if err != nil {
+			if err != nil && ctx.Err() == nil {
 				w.Logger.Error("worker pass failed", slog.String("error", err.Error()))
 			}
 			if err != nil || claimed < w.batch() || ctx.Err() != nil {

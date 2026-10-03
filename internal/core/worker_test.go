@@ -276,3 +276,17 @@ func TestDeriveStatus(t *testing.T) {
 		}
 	}
 }
+
+// TestWorkerStopsCleanlyDuringStartup: a shutdown that lands before or during
+// the startup requeue is a clean stop, not an error, and logs nothing at error.
+func TestWorkerStopsCleanlyDuringStartup(t *testing.T) {
+	h := newHarness(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := h.w.Run(ctx); err != nil {
+		t.Fatalf("Run with a cancelled context = %v, want nil", err)
+	}
+	if strings.Contains(h.logs.String(), `"level":"ERROR"`) {
+		t.Errorf("error logged on shutdown: %s", h.logs.String())
+	}
+}
