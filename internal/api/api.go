@@ -23,13 +23,19 @@ type Deps struct {
 	Recipients   *core.Recipients
 	Messages     *core.Messages
 	MaxBodyBytes int64
+	// TrustForwardedFor takes the client IP for auth rate limiting from the
+	// last X-Forwarded-For entry. Set it only behind a proxy that writes it.
+	TrustForwardedFor bool
 }
 
 // NewHandler returns the public HTTP handler with every route registered.
 func NewHandler(d Deps) http.Handler {
 	// Every /v1 route is wrapped in authed; only /healthz is public. Routes are
 	// registered on one mux so the request log sees the full route pattern.
-	authed := func(h http.Handler) http.Handler { return requireAuth(d.Logger, d.Auth, h) }
+	limiter := newFailLimiter(d.Clock)
+	authed := func(h http.Handler) http.Handler {
+		return requireAuth(d.Logger, d.Auth, limiter, d.TrustForwardedFor, h)
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", healthz(d.Logger, d.Health))

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ali-aliabadi/relay/internal/core"
@@ -26,16 +27,25 @@ func clientFrom(ctx context.Context) store.Client {
 }
 
 // requireAuth rejects requests without a valid "Authorization: Bearer <key>".
-// The key itself is never logged.
-func requireAuth(logger *slog.Logger, auth Authenticator, next http.Handler) http.Handler {
+// The key itself is never logged. An IP with too many recent failures gets
+// 429 without its key being checked.
+func requireAuth(logger *slog.Logger, auth Authenticator, lim *failLimiter, trustXFF bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := clientIP(r, trustXFF)
+		if wait := lim.blocked(ip); wait > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+			writeError(w, http.StatusTooManyRequests, "rate_limited", "too many failed authentication attempts")
+			return
+		}
 		key, ok := bearerToken(r.Header.Get("Authorization"))
 		if !ok {
+			lim.fail(ip)
 			unauthorized(w)
 			return
 		}
 		client, err := auth.Authenticate(r.Context(), key)
 		if errors.Is(err, core.ErrUnauthorized) {
+			lim.fail(ip)
 			unauthorized(w)
 			return
 		}

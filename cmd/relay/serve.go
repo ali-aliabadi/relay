@@ -73,13 +73,14 @@ func serve(ctx context.Context, lookup config.LookupFunc, logOut io.Writer, ln n
 func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, st *store.Store, msgs *core.Messages) *http.Server {
 	return &http.Server{
 		Handler: api.NewHandler(api.Deps{
-			Logger:       logger,
-			Clock:        time.Now,
-			Health:       st.Ping,
-			Auth:         core.NewClients(st),
-			Recipients:   core.NewRecipients(st),
-			Messages:     msgs,
-			MaxBodyBytes: cfg.MaxBodyBytes,
+			Logger:            logger,
+			Clock:             time.Now,
+			Health:            st.Ping,
+			Auth:              core.NewClients(st),
+			Recipients:        core.NewRecipients(st),
+			Messages:          msgs,
+			MaxBodyBytes:      cfg.MaxBodyBytes,
+			TrustForwardedFor: cfg.TrustForwardedFor,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,

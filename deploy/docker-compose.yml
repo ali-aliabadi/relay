@@ -1,0 +1,56 @@
+# Production stack on the VPS, in /opt/relay next to a hand-made .env.
+# The deploy workflow copies this file and the Caddyfile on every deploy and
+# sets RELAY_IMAGE_TAG to the commit being deployed.
+name: relay
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  relay:
+    image: ghcr.io/ali-aliabadi/relay:${RELAY_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      RELAY_TRUST_FORWARDED_FOR: "true" # only Caddy can reach Relay
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - relay-data:/data
+    networks: [web]
+    expose: ["8080"]
+    logging: *logging
+
+  # Terminates TLS for relay.alialiabadi.ir. If the VPS already runs a reverse
+  # proxy on 80/443, drop this service and proxy to relay:8080 from that one.
+  caddy:
+    image: caddy:2-alpine@sha256:881bbc60f9986d5ab8e7cfd6cf7e4ef3c9c0439fef2429d035d065577882f028
+    restart: unless-stopped
+    depends_on: [relay]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    tmpfs: [/tmp]
+    networks: [web]
+    logging: *logging
+
+volumes:
+  relay-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  web:

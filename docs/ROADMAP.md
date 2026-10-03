@@ -13,7 +13,7 @@ should be one small PR unless noted. Design details are in
 - [ ] On the VPS: create `/opt/relay` and `/opt/relay/.env` with `RELAY_TELEGRAM_BOT_TOKEN` (`chmod 600`)
 - [ ] Generate `RELAY_ENCRYPTION_KEY` (`openssl rand -base64 32`), put it in `.env` and keep a copy in a password manager
 - [ ] Create a deploy SSH key pair; add the public key to the deploy user's `authorized_keys` on the VPS
-- [ ] Add GitHub secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (and `VPS_PORT` if not 22)
+- [ ] Add GitHub secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS` (output of `ssh-keyscan <host>`, checked against the VPS) and `VPS_PORT` if not 22
 - [ ] Protect `master` (require PRs and green CI)
 
 ## Phase 1: skeleton and tooling
@@ -45,7 +45,7 @@ should be one small PR unless noted. Design details are in
 - [x] `relay clients create|list|revoke` (key printed once, SHA-256 hash stored)
 - [x] Bearer-token auth middleware with constant-time comparison; JSON error helper
 - [x] `relay recipients add|list|remove`
-- [ ] Rate-limit failed auth per client IP (trusting `X-Forwarded-For` only from Caddy)
+- [x] Rate-limit failed auth per client IP (trusting `X-Forwarded-For` only from Caddy)
 
 ## Phase 4: API
 
@@ -73,10 +73,10 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 6: deploy (MVP done when this is green)
 
-- [ ] `deploy/docker-compose.yml` (relay + caddy, named volume `/data`) and `deploy/Caddyfile`
-- [ ] `.github/workflows/deploy.yml`: build + push to GHCR, copy `deploy/` over SSH, `docker compose pull && up -d`, check `/healthz`
-- [ ] Docker log rotation (`json-file` `max-size`) in compose
-- [ ] Full `relay-security-review` skill pass over the whole codebase before first deploy
+- [x] `deploy/docker-compose.yml` (relay + caddy, named volume `/data`) and `deploy/Caddyfile`
+- [x] `.github/workflows/deploy.yml`: build + push to GHCR, copy `deploy/` over SSH, `docker compose pull && up -d`, check `/healthz`
+- [x] Docker log rotation (`json-file` `max-size`) in compose
+- [x] Full `relay-security-review` skill pass over the whole codebase before first deploy
 - [ ] First production deploy; register ali and ali's wife; send a real message to each
 - [ ] README "Running locally" verified against reality
 

@@ -30,6 +30,7 @@ type Config struct {
 	MetricsAddr        string
 	Pprof              bool
 	MaxBodyBytes       int64
+	TrustForwardedFor  bool
 }
 
 // LookupFunc matches os.LookupEnv so tests can inject an environment.
@@ -51,6 +52,7 @@ func Load(lookup LookupFunc) (Config, error) {
 		MetricsAddr:        p.str("RELAY_METRICS_ADDR", "127.0.0.1:9090"),
 		Pprof:              p.boolean("RELAY_PPROF", false),
 		MaxBodyBytes:       int64(p.integer("RELAY_MAX_BODY_BYTES", 7<<20)),
+		TrustForwardedFor:  p.boolean("RELAY_TRUST_FORWARDED_FOR", false),
 	}
 	cfg.validate(&p)
 	if len(p.errs) > 0 {
@@ -96,6 +98,7 @@ func (c Config) LogValue() slog.Value {
 		slog.String("metrics_addr", c.MetricsAddr),
 		slog.Bool("pprof", c.Pprof),
 		slog.Int64("max_body_bytes", c.MaxBodyBytes),
+		slog.Bool("trust_forwarded_for", c.TrustForwardedFor),
 	)
 }
 

@@ -37,6 +37,7 @@ func TestLoadDefaults(t *testing.T) {
 		{"RetentionDays", cfg.RetentionDays, 30},
 		{"MetricsAddr", cfg.MetricsAddr, "127.0.0.1:9090"},
 		{"Pprof", cfg.Pprof, false},
+		{"TrustForwardedFor", cfg.TrustForwardedFor, false},
 		{"MaxBodyBytes", cfg.MaxBodyBytes, int64(7340032)},
 		{"len(EncryptionKey)", len(cfg.EncryptionKey), EncryptionKeySize},
 	}
@@ -59,6 +60,7 @@ func TestLoadOverrides(t *testing.T) {
 		"RELAY_METRICS_ADDR":         "",
 		"RELAY_PPROF":                "true",
 		"RELAY_MAX_BODY_BYTES":       "1024",
+		"RELAY_TRUST_FORWARDED_FOR":  "true",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -66,7 +68,7 @@ func TestLoadOverrides(t *testing.T) {
 	if cfg.Addr != "127.0.0.1:9999" || cfg.DBPath != "./data/relay.db" ||
 		cfg.TelegramBotToken.Reveal() != "fake-token" || cfg.WorkerPollInterval != 250*time.Millisecond ||
 		cfg.LogLevel != slog.LevelDebug || cfg.RetentionDays != 7 || cfg.MetricsAddr != "" ||
-		!cfg.Pprof || cfg.MaxBodyBytes != 1024 {
+		!cfg.Pprof || cfg.MaxBodyBytes != 1024 || !cfg.TrustForwardedFor {
 		t.Errorf("overrides not applied: %+v", cfg)
 	}
 }

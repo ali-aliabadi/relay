@@ -1,0 +1,112 @@
+name: deploy
+
+# Deploys master to the VPS once ci has passed on that commit. Run it by hand
+# (workflow_dispatch) to redeploy the current master.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/ali-aliabadi/relay
+  URL: https://relay.alialiabadi.ir
+
+jobs:
+  deploy:
+    name: build, push and deploy
+    # Only pushes to master that passed ci; never a pull request's run.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+          persist-credentials: false
+
+      - name: Build and push the image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          make docker IMAGE="$IMAGE:$SHA" VERSION="$SHA"
+          docker tag "$IMAGE:$SHA" "$IMAGE:latest"
+          docker push "$IMAGE:$SHA"
+          docker push "$IMAGE:latest"
+          docker logout ghcr.io
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          if [ -z "$SSH_KEY" ] || [ -z "$KNOWN_HOSTS" ] || [ -z "$VPS_HOST" ] || [ -z "$VPS_USER" ]; then
+            echo "::error::Set the VPS_HOST, VPS_USER, VPS_SSH_KEY and VPS_KNOWN_HOSTS secrets"
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port ${VPS_PORT:-22}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Copy deploy files
+        run: scp deploy/docker-compose.yml deploy/Caddyfile vps:/opt/relay/
+
+      - name: Pull and restart
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' "$GH_TOKEN" | ssh vps "set -eu
+            cd /opt/relay
+            test -f .env || { echo '/opt/relay/.env is missing' >&2; exit 1; }
+            docker login ghcr.io -u '$GITHUB_ACTOR' --password-stdin >/dev/null
+            trap 'docker logout ghcr.io >/dev/null' EXIT
+            export RELAY_IMAGE_TAG='$SHA'
+            docker compose pull --quiet
+            docker compose up -d --remove-orphans
+            running=\$(docker compose ps --format '{{.Image}}' relay)
+            test \"\$running\" = '$IMAGE:$SHA' || { echo \"relay runs \$running\" >&2; exit 1; }
+            docker image prune -f >/dev/null"
+
+      - name: Wait for /healthz
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 5 "$URL/healthz"; then exit 0; fi
+            sleep 3
+          done
+          echo "::error::$URL/healthz did not become healthy"
+          # Container state only: these job logs may be public, so no app logs here.
+          ssh vps 'cd /opt/relay && docker compose ps'
+          exit 1
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

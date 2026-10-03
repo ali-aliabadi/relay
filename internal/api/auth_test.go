@@ -56,7 +56,7 @@ func TestRequireAuth(t *testing.T) {
 				w.WriteHeader(http.StatusTeapot)
 			})
 			mux := http.NewServeMux()
-			mux.Handle("GET /v1/thing", requireAuth(logger, tt.auth, inner))
+			mux.Handle("GET /v1/thing", requireAuth(logger, tt.auth, newFailLimiter(time.Now), false, inner))
 			h := obs.Middleware(logger, time.Now, mux)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/thing", nil)
