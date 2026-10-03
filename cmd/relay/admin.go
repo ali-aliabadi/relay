@@ -103,6 +103,9 @@ const recipientsUsage = `Usage:
   relay recipients add <username> --name "Display Name" [--timezone Europe/Berlin]
   relay recipients list
   relay recipients remove <username>
+  relay recipients alias <username> <alias>
+                                        another name for them in "to" (e.g. admin)
+  relay recipients unalias <alias>
   relay recipients link <username> @<telegram_username>
                                         link Telegram: they tap Start in the bot within 7 days
   relay recipients link <username> <code>
@@ -127,6 +130,8 @@ func recipientsCmd(e env, args []string) error {
 			return errUsage
 		}
 		return recipientsLink(e, args[1], args[2])
+	case "alias", "unalias":
+		return recipientsAlias(e, args)
 	case "remove":
 		if len(args) != 2 {
 			return errUsage
@@ -175,19 +180,45 @@ func recipientsList(e env, svc *core.Recipients) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(tw, "USERNAME\tNAME\tTIMEZONE\tCHANNELS\tLINKED")
+	fmt.Fprintln(tw, "USERNAME\tALIASES\tNAME\tTIMEZONE\tCHANNELS\tLINKED")
 	for _, r := range rs {
 		linked, err := svc.Channels(e.ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		aliases, err := svc.Aliases(e.ctx, r.ID)
 		if err != nil {
 			return err
 		}
 		if invited[r.ID] {
 			linked = append(linked, "telegram (invited)")
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.Username, r.DisplayName, r.Timezone,
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", r.Username, orDash(strings.Join(aliases, ",")), r.DisplayName, r.Timezone,
 			strings.Join(r.ChannelPreference, ","), orDash(strings.Join(linked, ",")))
 	}
 	return tw.Flush()
+}
+
+// recipientsAlias handles `alias <username> <alias>` and `unalias <alias>`.
+func recipientsAlias(e env, args []string) error {
+	if (args[0] == "alias" && len(args) != 3) || (args[0] == "unalias" && len(args) != 2) {
+		return errUsage
+	}
+	return e.withStore(func(st *store.Store) error {
+		svc := core.NewRecipients(st)
+		if args[0] == "unalias" {
+			if err := svc.RemoveAlias(e.ctx, args[1]); err != nil {
+				return err
+			}
+			fmt.Fprintf(e.stdout, "Removed alias %s.\n", args[1])
+			return nil
+		}
+		if err := svc.AddAlias(e.ctx, args[1], args[2], time.Now()); err != nil {
+			return err
+		}
+		fmt.Fprintf(e.stdout, "%s now also reaches %s.\n", args[2], args[1])
+		return nil
+	})
 }
 
 func orDash(s string) string {

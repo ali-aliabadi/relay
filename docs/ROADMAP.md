@@ -86,9 +86,10 @@ should be one small PR unless noted. Design details are in
 - [x] Telegram poller in `serve`: button taps, replies, `/start` link codes
 - [x] `GET /v1/messages/{id}/answers`; answers changeable until fetched, encrypted, purged at retention
 
-## Phase 8: easier linking
+## Phase 8: easier linking and names
 
 - [x] `relay recipients link <user> @telegram_username`: they tap Start, the bot links them (codes stay as the fallback)
+- [x] Aliases: `relay recipients alias ali admin`; any alias works in `to`, one delivery per person
 
 ## Later
 

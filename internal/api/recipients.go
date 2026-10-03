@@ -18,6 +18,7 @@ type recipientRequest struct {
 
 type recipientResponse struct {
 	Username          string   `json:"username"`
+	Aliases           []string `json:"aliases"`
 	DisplayName       string   `json:"display_name"`
 	Timezone          string   `json:"timezone"`
 	ChannelPreference []string `json:"channel_preference"`
@@ -35,8 +36,12 @@ func (h recipientHandlers) response(r *http.Request, rcp store.Recipient) (recip
 	if err != nil {
 		return recipientResponse{}, err
 	}
+	aliases, err := h.svc.Aliases(r.Context(), rcp.ID)
+	if err != nil {
+		return recipientResponse{}, err
+	}
 	return recipientResponse{
-		Username: rcp.Username, DisplayName: rcp.DisplayName, Timezone: rcp.Timezone,
+		Username: rcp.Username, Aliases: aliases, DisplayName: rcp.DisplayName, Timezone: rcp.Timezone,
 		ChannelPreference: rcp.ChannelPreference, LinkedChannels: linked,
 		CreatedAt: rcp.CreatedAt.Format(time.RFC3339),
 	}, nil

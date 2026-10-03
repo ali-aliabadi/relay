@@ -8,7 +8,7 @@ Relay is ali's personal notification gateway: a small Go HTTP service where apps
 `POST /v1/messages` with recipients, urgency and content blocks (text, fields, table,
 image, code, link, question), and Relay formats them with the channel's one built-in layout, routes it to a channel (Telegram in the MVP), retries and logs it.
 Answers to a `question` come back through the bot and apps fetch them from `GET /v1/messages/{id}/answers`.
-Users are ali and ali's wife, registered by hand.
+Users are ali and ali's wife, registered by hand. Aliases (e.g. `admin` → ali) give a person more names for `to`.
 
 **Relay handles private data.** Message content, images and contact details
 (Telegram chat IDs, later phone numbers) are personal. Privacy rules below are not optional.
