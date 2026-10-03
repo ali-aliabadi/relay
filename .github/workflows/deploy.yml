@@ -84,6 +84,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # SHA, IMAGE and GITHUB_ACTOR are meant to expand here, on the runner.
+          # shellcheck disable=SC2029
           printf '%s\n' "$GH_TOKEN" | ssh vps "set -eu
             cd /opt/relay
             test -f .env || { echo '/opt/relay/.env is missing' >&2; exit 1; }
