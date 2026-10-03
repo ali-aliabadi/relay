@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make)",
+      "Bash(make help)",
+      "Bash(make tools)",
+      "Bash(make run)",
+      "Bash(make fmt)",
+      "Bash(make fmt-check)",
+      "Bash(make lint)",
+      "Bash(make test)",
+      "Bash(make test-e2e)",
+      "Bash(make sec)",
+      "Bash(make check)",
+      "Bash(make generate)",
+      "Bash(make build)",
+      "Bash(make docker)",
+      "Bash(go test:*)",
+      "Bash(go build:*)",
+      "Bash(go vet:*)",
+      "Bash(go mod tidy)",
+      "Bash(scripts/check-file-length.sh)"
+    ]
+  }
+}

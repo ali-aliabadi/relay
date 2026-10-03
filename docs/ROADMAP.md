@@ -7,7 +7,7 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 0: one-time setup (ali, by hand)
 
-- [ ] Point DNS `relay.alialiabadi.ir` (A/AAAA record) at the VPS
+- [x] Point DNS `relay.alialiabadi.ir` (A/AAAA record) at the VPS
 - [ ] Check whether anything on the VPS already uses ports 80/443 (decides Caddy in compose vs. existing proxy)
 - [ ] Create the Telegram bot with @BotFather and keep the token
 - [ ] On the VPS: create `/opt/relay` and `/opt/relay/.env` with `RELAY_TELEGRAM_BOT_TOKEN` (`chmod 600`)
@@ -18,18 +18,18 @@ should be one small PR unless noted. Design details are in
 
 ## Phase 1: skeleton and tooling
 
-- [ ] `go mod init github.com/ali-aliabadi/relay`, `cmd/relay/main.go` with a `serve` subcommand
-- [ ] `internal/config`: parse env vars from the ARCHITECTURE config table, with defaults and validation (fail fast on a missing `RELAY_ENCRYPTION_KEY`)
-- [ ] `internal/obs`: slog JSON setup, request-ID middleware, request log line, redaction helpers + tests
-- [ ] `GET /healthz`, graceful shutdown on SIGTERM
-- [ ] Makefile with `run fmt fmt-check lint test test-e2e sec check generate build docker`
-- [ ] `.golangci.yml` (v2) with the linter set from ARCHITECTURE "Quality tooling"
-- [ ] `scripts/check-file-length.sh` (300 / 500 for tests, generated code exempt) wired into `make lint`
-- [ ] `.gitignore`, `.env.example` (no real values), `.editorconfig`
-- [ ] Multi-stage Dockerfile: static build, distroless non-root, read-only rootfs friendly; `hadolint` clean
-- [ ] `.github/workflows/ci.yml`: `make check`, `make test-e2e`, image build + trivy; actions pinned by SHA
-- [ ] Dependabot for Go modules, GitHub Actions and Docker
-- [ ] `.claude/settings.json` allowing the `make` targets, so agents run checks without prompts
+- [x] `go mod init github.com/ali-aliabadi/relay`, `cmd/relay/main.go` with a `serve` subcommand
+- [x] `internal/config`: parse env vars from the ARCHITECTURE config table, with defaults and validation (fail fast on a missing `RELAY_ENCRYPTION_KEY`)
+- [x] `internal/obs`: slog JSON setup, request-ID middleware, request log line, redaction helpers + tests
+- [x] `GET /healthz`, graceful shutdown on SIGTERM
+- [x] Makefile with `run fmt fmt-check lint test test-e2e sec check generate build docker`
+- [x] `.golangci.yml` (v2) with the linter set from ARCHITECTURE "Quality tooling"
+- [x] `scripts/check-file-length.sh` (300 / 500 for tests, generated code exempt) wired into `make lint`
+- [x] `.gitignore`, `.env.example` (no real values), `.editorconfig`
+- [x] Multi-stage Dockerfile: static build, distroless non-root, read-only rootfs friendly; `hadolint` clean
+- [x] `.github/workflows/ci.yml`: `make check`, `make test-e2e`, image build + trivy; actions pinned by SHA
+- [x] Dependabot for Go modules, GitHub Actions and Docker
+- [x] `.claude/settings.json` allowing the `make` targets, so agents run checks without prompts
 
 ## Phase 2: storage and privacy foundations
 
