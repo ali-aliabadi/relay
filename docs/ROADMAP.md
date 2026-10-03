@@ -59,15 +59,15 @@ should be one small PR unless noted. Design details are in
 
 - [x] `Channel` interface, `channel.Error` (permanent / retry-after), `fake` channel
 - [x] Router: urgency + preferences + `channels` override → ordered plan
-- [ ] Worker: claim due deliveries atomically, send, record, backoff, requeue stuck `sending` rows on startup
+- [x] Worker: claim due deliveries atomically, send, record, backoff, requeue stuck `sending` rows on startup
 - [x] Telegram layout: every block type to HTML/`sendPhoto`/inline buttons, escaping, length limits, golden tests
 - [x] `POST /v1/preview` (uses each channel's `Preview`) and `GET /v1/channels`
 - [x] Telegram channel: `sendMessage`/`sendPhoto` with HTML parse mode, `disable_notification` for `low`, error classification incl. 429
-- [ ] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
-- [ ] `relay send` for manual test messages
+- [x] `relay recipients link <username>`: long-poll `getUpdates` for `/start`, store chat_id
+- [x] `relay send` for manual test messages
 - [ ] Retention job: purge content after `RELAY_RETENTION_DAYS`, delete metadata after 180 days
 - [ ] Metrics on the internal listener (`/metrics`, optional pprof) with the metric set from ARCHITECTURE
-- [ ] Integration test: API → worker → fake channel → status `delivered`
+- [x] Integration test: API → worker → fake channel → status `delivered`
 - [ ] testcontainers e2e suite: real image + fake Telegram API container (send, retry, idempotency, restart durability)
 - [ ] Fuzz tests for request parsing, block validation and layouts
 

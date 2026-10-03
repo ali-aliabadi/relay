@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ali-aliabadi/relay/internal/api"
+	"github.com/ali-aliabadi/relay/internal/channel"
 	"github.com/ali-aliabadi/relay/internal/config"
 	"github.com/ali-aliabadi/relay/internal/core"
 	"github.com/ali-aliabadi/relay/internal/obs"
@@ -44,16 +45,34 @@ func serve(ctx context.Context, lookup config.LookupFunc, logOut io.Writer, ln n
 		}
 	}
 
-	srv := newHTTPServer(ctx, cfg, logger, st)
+	channels := buildChannels(cfg)
+	srv := newHTTPServer(ctx, cfg, logger, st, channels)
 
 	logger.Info("relay starting", slog.String("version", version), slog.Any("config", cfg),
 		slog.String("listen", ln.Addr().String()))
 
-	return runHTTP(ctx, logger, srv, ln)
+	worker := &core.Worker{
+		Store: st, Channels: channels, Logger: logger, Clock: time.Now, Poll: cfg.WorkerPollInterval,
+	}
+	workerCtx, stopWorker := context.WithCancel(context.WithoutCancel(ctx))
+	workerDone := make(chan error, 1)
+	go func() { workerDone <- worker.Run(workerCtx) }()
+
+	httpErr := runHTTP(ctx, logger, srv, ln)
+	// Stop the worker after the API: no new messages arrive, and the
+	// delivery in flight (if any) finishes before Run returns.
+	stopWorker()
+	if err := <-workerDone; err != nil && httpErr == nil {
+		return fmt.Errorf("delivery worker: %w", err)
+	}
+	if httpErr == nil {
+		logger.Info("relay stopped")
+	}
+	return httpErr
 }
 
 // newHTTPServer builds the public API server with its timeouts.
-func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, st *store.Store) *http.Server {
+func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, st *store.Store, channels []channel.Channel) *http.Server {
 	return &http.Server{
 		Handler: api.NewHandler(api.Deps{
 			Logger:       logger,
@@ -61,7 +80,7 @@ func newHTTPServer(ctx context.Context, cfg config.Config, logger *slog.Logger, 
 			Health:       st.Ping,
 			Auth:         core.NewClients(st),
 			Recipients:   core.NewRecipients(st),
-			Messages:     core.NewMessages(st, buildChannels(cfg)),
+			Messages:     core.NewMessages(st, channels),
 			MaxBodyBytes: cfg.MaxBodyBytes,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -94,6 +113,5 @@ func runHTTP(ctx context.Context, logger *slog.Logger, srv *http.Server, ln net.
 	if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serving http: %w", err)
 	}
-	logger.Info("relay stopped")
 	return nil
 }

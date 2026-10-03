@@ -20,3 +20,6 @@ LIMIT sqlc.arg('limit');
 
 -- name: UpdateMessageStatus :exec
 UPDATE messages SET status = ? WHERE id = ?;
+
+-- name: GetMessageByID :one
+SELECT * FROM messages WHERE id = ?;

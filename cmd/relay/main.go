@@ -21,19 +21,20 @@ Commands:
   serve        run the HTTP API and delivery worker
   migrate      apply database migrations and exit (serve also does this)
   clients      create, list and revoke API clients
-  recipients   add, list and remove recipients
+  recipients   add, list, remove and link recipients
+  send         queue a test message and wait for its delivery
   version      print the version
 `
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	code := run(ctx, os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr)
+	code := run(ctx, os.Args[1:], os.LookupEnv, os.Stdin, os.Stdout, os.Stderr)
 	stop()
 	os.Exit(code)
 }
 
 // run dispatches a subcommand and returns the process exit code.
-func run(ctx context.Context, args []string, lookup func(string) (string, bool), stdout, stderr io.Writer) int {
+func run(ctx context.Context, args []string, lookup func(string) (string, bool), stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -52,9 +53,11 @@ func run(ctx context.Context, args []string, lookup func(string) (string, bool),
 		}
 		return 0
 	case "clients":
-		return admin(env{ctx, lookup, stdout, stderr}, args[1:], clientsCmd, clientsUsage)
+		return admin(env{ctx, lookup, stdin, stdout, stderr}, args[1:], clientsCmd, clientsUsage)
 	case "recipients":
-		return admin(env{ctx, lookup, stdout, stderr}, args[1:], recipientsCmd, recipientsUsage)
+		return admin(env{ctx, lookup, stdin, stdout, stderr}, args[1:], recipientsCmd, recipientsUsage)
+	case "send":
+		return admin(env{ctx, lookup, stdin, stdout, stderr}, args[1:], sendCmd, sendUsage)
 	case "version":
 		fmt.Fprintln(stdout, version)
 		return 0

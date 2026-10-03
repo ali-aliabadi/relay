@@ -7,7 +7,61 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
+
+const claimDueDeliveries = `-- name: ClaimDueDeliveries :many
+UPDATE deliveries
+SET status = 'sending', attempts = attempts + 1, updated_at = ?1
+WHERE id IN (
+    SELECT d.id FROM deliveries d
+    WHERE d.status = 'queued' AND d.next_attempt_at <= ?1
+    ORDER BY d.next_attempt_at, d.id
+    LIMIT ?2
+)
+RETURNING id, message_id, recipient_id, channel, status, attempts, next_attempt_at, provider_message_id, last_error, created_at, updated_at
+`
+
+type ClaimDueDeliveriesParams struct {
+	Now   string
+	Limit int64
+}
+
+// One statement, so a delivery is claimed by exactly one worker pass.
+func (q *Queries) ClaimDueDeliveries(ctx context.Context, arg ClaimDueDeliveriesParams) ([]Delivery, error) {
+	rows, err := q.db.QueryContext(ctx, claimDueDeliveries, arg.Now, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Delivery{}
+	for rows.Next() {
+		var i Delivery
+		if err := rows.Scan(
+			&i.ID,
+			&i.MessageID,
+			&i.RecipientID,
+			&i.Channel,
+			&i.Status,
+			&i.Attempts,
+			&i.NextAttemptAt,
+			&i.ProviderMessageID,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const createDelivery = `-- name: CreateDelivery :exec
 INSERT INTO deliveries (id, message_id, recipient_id, channel, status, attempts, next_attempt_at, created_at, updated_at)
@@ -37,6 +91,38 @@ func (q *Queries) CreateDelivery(ctx context.Context, arg CreateDeliveryParams) 
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const deliveryStatusCounts = `-- name: DeliveryStatusCounts :many
+SELECT status, count(*) AS n FROM deliveries WHERE message_id = ? GROUP BY status
+`
+
+type DeliveryStatusCountsRow struct {
+	Status string
+	N      int64
+}
+
+func (q *Queries) DeliveryStatusCounts(ctx context.Context, messageID string) ([]DeliveryStatusCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, deliveryStatusCounts, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeliveryStatusCountsRow{}
+	for rows.Next() {
+		var i DeliveryStatusCountsRow
+		if err := rows.Scan(&i.Status, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDeliveriesForMessage = `-- name: ListDeliveriesForMessage :many
@@ -76,4 +162,90 @@ func (q *Queries) ListDeliveriesForMessage(ctx context.Context, messageID string
 		return nil, err
 	}
 	return items, nil
+}
+
+const markDeliveryDelivered = `-- name: MarkDeliveryDelivered :exec
+UPDATE deliveries SET status = 'delivered', provider_message_id = ?, last_error = NULL, updated_at = ? WHERE id = ?
+`
+
+type MarkDeliveryDeliveredParams struct {
+	ProviderMessageID sql.NullString
+	UpdatedAt         string
+	ID                string
+}
+
+func (q *Queries) MarkDeliveryDelivered(ctx context.Context, arg MarkDeliveryDeliveredParams) error {
+	_, err := q.db.ExecContext(ctx, markDeliveryDelivered, arg.ProviderMessageID, arg.UpdatedAt, arg.ID)
+	return err
+}
+
+const markDeliveryFailed = `-- name: MarkDeliveryFailed :exec
+UPDATE deliveries SET status = 'failed', last_error = ?, updated_at = ? WHERE id = ?
+`
+
+type MarkDeliveryFailedParams struct {
+	LastError sql.NullString
+	UpdatedAt string
+	ID        string
+}
+
+func (q *Queries) MarkDeliveryFailed(ctx context.Context, arg MarkDeliveryFailedParams) error {
+	_, err := q.db.ExecContext(ctx, markDeliveryFailed, arg.LastError, arg.UpdatedAt, arg.ID)
+	return err
+}
+
+const markDeliveryRetry = `-- name: MarkDeliveryRetry :exec
+UPDATE deliveries SET status = 'queued', next_attempt_at = ?, last_error = ?, updated_at = ? WHERE id = ?
+`
+
+type MarkDeliveryRetryParams struct {
+	NextAttemptAt string
+	LastError     sql.NullString
+	UpdatedAt     string
+	ID            string
+}
+
+func (q *Queries) MarkDeliveryRetry(ctx context.Context, arg MarkDeliveryRetryParams) error {
+	_, err := q.db.ExecContext(ctx, markDeliveryRetry,
+		arg.NextAttemptAt,
+		arg.LastError,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const queueStats = `-- name: QueueStats :one
+SELECT count(*) AS depth, CAST(coalesce(min(next_attempt_at), '') AS TEXT) AS oldest
+FROM deliveries WHERE status = 'queued'
+`
+
+type QueueStatsRow struct {
+	Depth  int64
+	Oldest string
+}
+
+func (q *Queries) QueueStats(ctx context.Context) (QueueStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, queueStats)
+	var i QueueStatsRow
+	err := row.Scan(&i.Depth, &i.Oldest)
+	return i, err
+}
+
+const requeueSending = `-- name: RequeueSending :execrows
+UPDATE deliveries SET status = 'queued', next_attempt_at = ?, updated_at = ? WHERE status = 'sending'
+`
+
+type RequeueSendingParams struct {
+	NextAttemptAt string
+	UpdatedAt     string
+}
+
+// On startup nothing can be in flight, so every 'sending' row is stuck from a crash.
+func (q *Queries) RequeueSending(ctx context.Context, arg RequeueSendingParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, requeueSending, arg.NextAttemptAt, arg.UpdatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

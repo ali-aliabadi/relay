@@ -72,6 +72,29 @@ func (q *Queries) GetMessage(ctx context.Context, arg GetMessageParams) (Message
 	return i, err
 }
 
+const getMessageByID = `-- name: GetMessageByID :one
+SELECT id, client_id, urgency, title, blocks, source, idempotency_key, request_id, status, created_at, redacted_at FROM messages WHERE id = ?
+`
+
+func (q *Queries) GetMessageByID(ctx context.Context, id string) (Message, error) {
+	row := q.db.QueryRowContext(ctx, getMessageByID, id)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.Urgency,
+		&i.Title,
+		&i.Blocks,
+		&i.Source,
+		&i.IdempotencyKey,
+		&i.RequestID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.RedactedAt,
+	)
+	return i, err
+}
+
 const getMessageByIdempotencyKey = `-- name: GetMessageByIdempotencyKey :one
 SELECT id, client_id, urgency, title, blocks, source, idempotency_key, request_id, status, created_at, redacted_at FROM messages WHERE client_id = ? AND idempotency_key = ?
 `

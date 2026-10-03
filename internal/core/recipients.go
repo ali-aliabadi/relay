@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ali-aliabadi/relay/internal/store"
 )
@@ -90,4 +91,15 @@ func validateRecipient(rcp store.Recipient) error {
 		seen[ch] = true
 	}
 	return nil
+}
+
+// Link stores a verified contact for a recipient on a channel.
+func (r *Recipients) Link(ctx context.Context, username, channelName, address string, verifiedAt time.Time) error {
+	rcp, err := r.store.RecipientByUsername(ctx, username)
+	if err != nil {
+		return err
+	}
+	return r.store.UpsertContact(ctx, store.Contact{
+		RecipientID: rcp.ID, Channel: channelName, Address: address, VerifiedAt: &verifiedAt,
+	})
 }

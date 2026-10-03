@@ -23,6 +23,7 @@ var errUsage = errors.New("usage")
 type env struct {
 	ctx    context.Context
 	lookup config.LookupFunc
+	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer
 }
@@ -30,6 +31,11 @@ type env struct {
 // withStore opens the database (applying migrations) for one admin command.
 // Logs go to stderr so stdout carries only the command's output.
 func (e env) withStore(fn func(*store.Store) error) error {
+	return e.withConfigStore(func(_ config.Config, st *store.Store) error { return fn(st) })
+}
+
+// withConfigStore is withStore for commands that also need the config.
+func (e env) withConfigStore(fn func(config.Config, *store.Store) error) error {
 	cfg, err := config.Load(e.lookup)
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -39,7 +45,7 @@ func (e env) withStore(fn func(*store.Store) error) error {
 		return err
 	}
 	defer func() { _ = conn.Close() }()
-	return fn(st)
+	return fn(cfg, st)
 }
 
 const clientsUsage = `Usage:
@@ -97,6 +103,7 @@ const recipientsUsage = `Usage:
   relay recipients add <username> --name "Display Name" [--timezone Europe/Berlin]
   relay recipients list
   relay recipients remove <username>
+  relay recipients link <username>     link Telegram: then send /start to the bot from their phone
 `
 
 func recipientsCmd(e env, args []string) error {
@@ -111,6 +118,11 @@ func recipientsCmd(e env, args []string) error {
 			return errUsage
 		}
 		return e.withStore(func(st *store.Store) error { return recipientsList(e, core.NewRecipients(st)) })
+	case "link":
+		if len(args) != 2 {
+			return errUsage
+		}
+		return recipientsLink(e, args[1])
 	case "remove":
 		if len(args) != 2 {
 			return errUsage

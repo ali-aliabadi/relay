@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -145,3 +146,5 @@ func TestRecipients(t *testing.T) {
 		t.Errorf("List = %v, %v", list, err)
 	}
 }
+
+func b64(b []byte) string { return base64.StdEncoding.EncodeToString(b) }

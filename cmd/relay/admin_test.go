@@ -27,7 +27,7 @@ func newCLI(t *testing.T) cli {
 func (c cli) run(args ...string) (int, string, string) {
 	c.t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := run(c.t.Context(), args, c.env, &stdout, &stderr)
+	code := run(c.t.Context(), args, c.env, strings.NewReader(""), &stdout, &stderr)
 	return code, stdout.String(), stderr.String()
 }
 

@@ -27,6 +27,7 @@ type v1 struct {
 	st   *store.Store
 	key  string
 	logs *bytes.Buffer
+	ch   *fake.Channel
 }
 
 func newV1(t *testing.T) *v1 {
@@ -47,13 +48,14 @@ func newV1(t *testing.T) *v1 {
 		t.Fatal(err)
 	}
 	logs := &bytes.Buffer{}
+	ch := fake.New("telegram")
 	srv := httptest.NewServer(NewHandler(Deps{
 		Logger: obs.NewLogger(logs, slog.LevelDebug), Clock: time.Now, Health: st.Ping, Auth: clients,
-		Recipients: core.NewRecipients(st), Messages: core.NewMessages(st, []channel.Channel{fake.New("telegram")}),
+		Recipients: core.NewRecipients(st), Messages: core.NewMessages(st, []channel.Channel{ch}),
 		MaxBodyBytes: 7 << 20,
 	}))
 	t.Cleanup(srv.Close)
-	return &v1{t: t, srv: srv, st: st, key: key, logs: logs}
+	return &v1{t: t, srv: srv, st: st, key: key, logs: logs, ch: ch}
 }
 
 // linkedRecipient creates recipient "ali" with a telegram contact.
@@ -118,3 +120,5 @@ func (r result) errCode() string {
 func storeRecipient(username string) store.Recipient {
 	return store.Recipient{Username: username, DisplayName: username}
 }
+
+func (h *v1) srvLogger() *slog.Logger { return obs.NewLogger(h.logs, slog.LevelInfo) }
