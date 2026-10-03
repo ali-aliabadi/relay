@@ -96,25 +96,27 @@ func (m *Messages) checkChannels(channels []string) error {
 	return nil
 }
 
-// plan resolves every recipient and routes it. Unknown or unreachable
+// plan resolves every recipient (by username or alias) and routes it. Two
+// names for the same person plan one delivery. Unknown or unreachable
 // recipients are reported by position, never by name.
 func (m *Messages) plan(ctx context.Context, req message.Request) ([]store.PlannedDelivery, error) {
-	found, err := m.store.RecipientsByUsernames(ctx, req.To)
+	byName, err := m.store.RecipientsByNames(ctx, req.To)
 	if err != nil {
 		return nil, err
 	}
-	byName := make(map[string]store.Recipient, len(found))
-	for _, r := range found {
-		byName[r.Username] = r
-	}
 	var plan []store.PlannedDelivery
 	var problems []string
-	for i, username := range req.To {
-		r, ok := byName[username]
+	planned := map[string]bool{}
+	for i, name := range req.To {
+		r, ok := byName[name]
 		if !ok {
 			problems = append(problems, fmt.Sprintf("to[%d]: unknown recipient", i))
 			continue
 		}
+		if planned[r.ID] {
+			continue
+		}
+		planned[r.ID] = true
 		contacts, err := m.store.ContactsForRecipient(ctx, r.ID)
 		if err != nil {
 			return nil, err

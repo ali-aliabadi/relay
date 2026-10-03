@@ -8,6 +8,12 @@ import (
 	"database/sql"
 )
 
+type Alias struct {
+	Name        string
+	RecipientID string
+	CreatedAt   string
+}
+
 type Answer struct {
 	MessageID   string
 	RecipientID string

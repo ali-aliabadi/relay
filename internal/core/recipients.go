@@ -31,6 +31,9 @@ func (r *Recipients) Add(ctx context.Context, rcp store.Recipient) (store.Recipi
 	if err := validateRecipient(rcp); err != nil {
 		return store.Recipient{}, err
 	}
+	if err := r.nameIsFree(ctx, rcp.Username); err != nil {
+		return store.Recipient{}, err
+	}
 	return r.store.CreateRecipient(ctx, rcp)
 }
 

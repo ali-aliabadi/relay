@@ -94,6 +94,7 @@ Then register a recipient and send yourself a message (needs `RELAY_TELEGRAM_BOT
 ```bash
 go run ./cmd/relay clients create my-script     # prints an API key once
 go run ./cmd/relay recipients add ali --name "Ali"
+go run ./cmd/relay recipients alias ali admin   # optional: more names for the same person
 go run ./cmd/relay recipients link ali @your_telegram_username
 # with `make run` going in another terminal: open the bot and tap Start; it confirms the link
 # (no Telegram username? /start replies with a code: recipients link ali <code>)
