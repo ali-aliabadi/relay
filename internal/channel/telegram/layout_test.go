@@ -55,6 +55,25 @@ var goldenCases = map[string]message.Message{
 		{Type: "image", URL: "https://example.com/chart.png", Caption: "Chart"},
 		{Type: "text", Text: strings.Repeat("long text ", 150)},
 	}},
+	"file_caption": {Urgency: "low", Title: "Report", Source: "billing", Blocks: []message.Block{
+		{Type: "text", Text: "September invoice."},
+		{Type: "file", Filename: "invoice <9>.pdf", ContentType: "application/pdf", Caption: "Due Oct 15", Attachment: idx(0)},
+		{Type: "link", Text: "Pay", URL: "https://bank.example/pay"},
+	}},
+	"file_long_text": {Urgency: "normal", Title: "Logs", Blocks: []message.Block{
+		{Type: "file", Filename: "build.log", ContentType: "text/plain", Caption: "Full log", Attachment: idx(0)},
+		{Type: "code", Text: strings.Repeat("error line\n", 120)},
+	}},
+	"photo_and_file": {Urgency: "normal", DeliveryID: "dlv_TEST", Blocks: []message.Block{
+		{Type: "image", URL: "https://example.com/chart.png", Caption: "Chart"},
+		{Type: "file", Filename: "data.csv", ContentType: "text/csv", Attachment: idx(0)},
+		{Type: "question", Text: "Approve?", Options: []string{"Yes"}},
+	}},
+	"photo_and_file_only": {Urgency: "normal", Blocks: []message.Block{
+		{Type: "image", URL: "https://example.com/chart.png"},
+		{Type: "file", Filename: "data.csv", Attachment: idx(0)},
+		{Type: "link", Text: "Open", URL: "https://example.com"},
+	}},
 	"emoji": {Urgency: "normal", Blocks: []message.Block{{Type: "text", Text: "سلام 👋🏽 مرحبا"}}},
 	"question_options": {Urgency: "high", Title: "Deploy", Source: "ci", DeliveryID: "dlv_TEST", Blocks: []message.Block{
 		{Type: "text", Text: "v2 passed staging."},

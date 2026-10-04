@@ -1,0 +1,17 @@
+[
+  {
+    "kind": "photo",
+    "photo": "https://example.com/chart.png"
+  },
+  {
+    "kind": "document",
+    "document": "inline",
+    "filename": "data.csv",
+    "buttons": [
+      {
+        "text": "Open",
+        "url": "https://example.com"
+      }
+    ]
+  }
+]

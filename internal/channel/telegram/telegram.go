@@ -72,14 +72,17 @@ func (c *Channel) sendPart(ctx context.Context, chatID string, p channel.Part, m
 	if p.Text != "" {
 		params["caption"] = p.Text
 	}
-	if p.Photo != "inline" {
+	method, field := "sendPhoto", "photo"
+	if p.Kind == "document" {
+		method, field = "sendDocument", "document"
+	} else if p.Photo != "inline" {
 		params["photo"] = p.Photo
-		err := c.client.call(ctx, "sendPhoto", params, &out)
+		err := c.client.call(ctx, method, params, &out)
 		return out.MessageID, err
 	}
-	img, ok := inlineImage(msg)
+	att, filename, ok := inlineAttachment(msg, p.Kind)
 	if !ok {
-		return 0, channel.Permanent("inline image missing")
+		return 0, channel.Permanent("inline %s missing", p.Kind)
 	}
 	fields := map[string]string{}
 	for k, v := range params {
@@ -93,7 +96,8 @@ func (c *Channel) sendPart(ctx context.Context, chatID string, p channel.Part, m
 			fields[k] = raw
 		}
 	}
-	err := c.client.callMultipart(ctx, "sendPhoto", fields, "photo", img.Bytes, img.ContentType, &out)
+	file := upload{field: field, name: filename, contentType: att.ContentType, data: att.Bytes}
+	err := c.client.callMultipart(ctx, method, fields, file, &out)
 	return out.MessageID, err
 }
 
@@ -105,13 +109,26 @@ func markup(buttons []channel.Button) replyMarkup {
 	return replyMarkup{InlineKeyboard: rows}
 }
 
-func inlineImage(msg message.Message) (message.Image, bool) {
+// inlineAttachment returns the bytes and upload file name of the message's
+// inline photo or document (each message has at most one of each).
+func inlineAttachment(msg message.Message, kind string) (message.Attachment, string, bool) {
 	for _, b := range msg.Blocks {
-		if b.Type == message.BlockImage && b.Attachment != nil && *b.Attachment < len(msg.Images) {
-			return msg.Images[*b.Attachment], true
+		if b.Attachment == nil || *b.Attachment >= len(msg.Attachments) {
+			continue
+		}
+		att := msg.Attachments[*b.Attachment]
+		switch {
+		case kind == "document" && b.Type == message.BlockFile:
+			return att, b.Filename, true
+		case kind == "photo" && b.Type == message.BlockImage:
+			name := "image.png"
+			if att.ContentType == "image/jpeg" {
+				name = "image.jpg"
+			}
+			return att, name, true
 		}
 	}
-	return message.Image{}, false
+	return message.Attachment{}, "", false
 }
 
 // classify maps Bot API failures to channel errors. 400, 401, 403 and 404

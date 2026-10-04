@@ -12,6 +12,7 @@ const (
 	fCaption
 	fOptions
 	fWebhook
+	fFilename
 )
 
 var allowedFields = map[string]int{
@@ -21,6 +22,7 @@ var allowedFields = map[string]int{
 	BlockTable:  fColumns | fRows,
 	BlockLink:   fText | fURL,
 	BlockImage:  fURL | fBase64 | fContentType | fCaption,
+	BlockFile:   fBase64 | fContentType | fCaption | fFilename,
 
 	BlockQuestion: fText | fOptions | fWebhook,
 }
@@ -31,7 +33,7 @@ func onlyFields(b *Block, allowed int) bool {
 	for bit, present := range map[int]bool{
 		fText: b.Text != "", fItems: b.Items != nil, fColumns: b.Columns != nil, fRows: b.Rows != nil,
 		fURL: b.URL != "", fBase64: b.Base64 != "", fContentType: b.ContentType != "", fCaption: b.Caption != "",
-		fOptions: b.Options != nil, fWebhook: b.Webhook != "",
+		fOptions: b.Options != nil, fWebhook: b.Webhook != "", fFilename: b.Filename != "",
 	} {
 		if present {
 			set |= bit

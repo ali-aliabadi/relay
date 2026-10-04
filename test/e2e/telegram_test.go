@@ -200,8 +200,9 @@ func (s *stack) sentMessages() []fakeCall {
 	return calls
 }
 
-// waitStatus polls a message until it reaches want.
-func (s *stack) waitStatus(id, want string, within time.Duration) map[string]any {
+// waitDelivered polls a message until it is delivered.
+func (s *stack) waitDelivered(id string, within time.Duration) map[string]any {
+	const want = "delivered"
 	s.t.Helper()
 	deadline := time.Now().Add(within)
 	for {
@@ -236,7 +237,7 @@ func TestTelegramDeliveryEndToEnd(t *testing.T) {
 	if code, again := s.api(http.MethodPost, "/v1/messages", body); code != http.StatusOK || again["id"] != id {
 		t.Fatalf("idempotent retry = %d %v", code, again)
 	}
-	s.waitStatus(id, "delivered", 15*time.Second)
+	s.waitDelivered(id, 15*time.Second)
 	if n := s.sends() - linked; n != 1 {
 		t.Fatalf("sendMessage calls for the message = %d, want 1", n)
 	}
@@ -245,7 +246,7 @@ func TestTelegramDeliveryEndToEnd(t *testing.T) {
 	s.control(http.MethodPost, "/_fail", `[{"status":502,"description":"Bad Gateway"}]`)
 	_, second := s.api(http.MethodPost, "/v1/messages", `{"to":["ali"],"text":"retry me"}`)
 	id2, _ := second["id"].(string)
-	msg := s.waitStatus(id2, "delivered", 40*time.Second)
+	msg := s.waitDelivered(id2, 40*time.Second)
 	if d := msg["deliveries"].([]any)[0].(map[string]any); d["attempts"] != float64(2) {
 		t.Errorf("attempts = %v, want 2", d["attempts"])
 	}

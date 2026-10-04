@@ -1,0 +1,15 @@
+[
+  {
+    "kind": "document",
+    "text": "<b>Report</b>\n\nSeptember invoice.\n\n<i>Due Oct 15</i>\n\n<i>via billing</i>",
+    "document": "inline",
+    "filename": "invoice <9>.pdf",
+    "buttons": [
+      {
+        "text": "Pay",
+        "url": "https://bank.example/pay"
+      }
+    ],
+    "disable_notification": true
+  }
+]

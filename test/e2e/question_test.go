@@ -66,7 +66,7 @@ func TestQuestionEndToEnd(t *testing.T) {
 		{"type":"question","text":"Ship v2?","options":["Yes","No"]}]}`)
 	buttonsID, _ := created["id"].(string)
 	sent := s.question("Ship v2?")
-	if msg := s.waitStatus(buttonsID, "delivered", 15*time.Second); len(msg["deliveries"].([]any)) != 1 {
+	if msg := s.waitDelivered(buttonsID, 15*time.Second); len(msg["deliveries"].([]any)) != 1 {
 		t.Fatalf("deliveries = %v; want one for admin + ali", msg["deliveries"])
 	}
 	rows := sent.Params["reply_markup"].(map[string]any)["inline_keyboard"].([]any)

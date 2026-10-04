@@ -33,7 +33,7 @@ Two ready-made clients do the plumbing; use the one matching your app's
 language, or call the HTTP API below directly from any other.
 
 - **Go:** [`references/go.md`](references/go.md) has a single-file client to
-  copy into your app (`relay.FromEnv()`, `Notify`, `Send`, `Ask`,
+  copy into your app (`relay.FromEnv()`, `Notify`, `Send`, `FileBlock`, `Ask`,
   `Answers`, `WaitForAnswer`), with usage. Read it when the app is in Go.
 - **Python or shell:** `scripts/relay.py`, below.
 
@@ -53,6 +53,9 @@ python3 $R notify "Nightly backup of nas stopped." --title "Backup failed" --urg
   --field Host=nas --field "Error=disk full"
 # {"id": "msg_01J...", "status": "queued"}
 
+# Attach a file (one per message, up to 5 MB; type guessed from the extension)
+python3 $R notify "September invoice." --file invoice.pdf --file-caption "Due Oct 15"
+
 # Ask with buttons and wait up to an hour for the answer
 python3 $R ask "Ship v2.3 to production?" --option Yes --option No \
   --text "v2.3 passed staging. 14 commits, 2 migrations." --wait 3600
@@ -62,7 +65,7 @@ python3 $R ask "Ship v2.3 to production?" --option Yes --option No \
 python3 $R ask "What should the new hostname be?"      # {"id": "msg_01J..."}
 python3 $R answer msg_01J... --wait 600
 
-# Anything else: a full POST /v1/messages body on stdin (tables, code, images, links)
+# Anything else: a full POST /v1/messages body on stdin (tables, code, images, files, links)
 python3 $R send < message.json
 
 python3 $R status msg_01J...      # delivery status
@@ -83,6 +86,8 @@ import sys; sys.path.insert(0, "path/to/relay-notify/scripts")
 import relay
 
 relay.notify("Backup finished", urgency="low")
+relay.notify("Logs attached", file="build.log", file_caption="Last run")
+relay.send({"blocks": [relay.file_block("report.csv", caption="Weekly")]})
 mid = relay.ask("Ship v2.3?", options=["Yes", "No"])
 got = relay.wait_for_answer(mid, timeout_s=3600)   # None if nobody answered
 if got and got["answer"] == "Yes":
@@ -194,6 +199,7 @@ blocks and Telegram's one layout renders them in order.
 | `code` | `text` | 4000 chars | Monospaced block |
 | `link` | `text`, `url` | text 64, `https` only | A button under the message |
 | `image` | `url` (`https`) **or** `base64` + `content_type`, optional `caption` | 1 per message; PNG/JPEG up to 5 MB; caption 1024 | A photo. Use `base64` for images on private hosts: Telegram fetches `url` itself |
+| `file` | `filename`, `base64`, optional `content_type`, optional `caption` | 1 per message; any type, 1 byte to 5 MB; filename 128, no `/`, `\` or control characters; caption 1024 | A document the reader can download. `content_type` defaults to `application/octet-stream` |
 | `question` | `text`, optional `options`, optional `webhook` | see Ask a question | The question in bold at the end, with buttons |
 
 Every value is plain text: `<b>`, Markdown and the like are shown literally,
@@ -214,6 +220,10 @@ Reusable shapes for common cases (with the tool, or as the JSON body):
   `options` like `["Approve", "Reject"]`; act only on the answer.
 - **Free-text input:** a `question` with no `options`; validate what comes back.
 - **Screenshot or chart:** one `image` block (`base64` for local files) with a short `caption`.
+- **File (log, CSV, PDF):** a `text` line saying what it is, then one `file` block.
+  Use `image` instead for pictures people should see inline. Over 5 MB: don't
+  send it; say where to find it. An image and a file together must still fit
+  the 7 MB request limit (base64 adds a third).
 
 ## Ask a question
 
@@ -297,7 +307,7 @@ Errors look like `{"error": {"code": "...", "message": "..."}}`.
 | 400 | `invalid_json` | Fix the JSON. Unknown fields are rejected, so check spelling |
 | 401 | `unauthorized` | The key is missing, wrong or revoked; ask the admin |
 | 404 | `not_found` | No such message, or it belongs to another app |
-| 413 | `too_large` | Body over 7 MB; shrink the image |
+| 413 | `too_large` | Body over 7 MB; shrink the image or file |
 | 422 | `invalid_request` | `problems` lists each issue by path, e.g. `to[1]: unknown recipient`, `to[0]: recipient has no linked channel to send on`, `blocks[0].options[2]: duplicate`. Fix exactly those |
 | 429 | `rate_limited` | Too many failed logins from your IP; wait `Retry-After` seconds |
 | 5xx / network error | | Retry with backoff, using the same `idempotency_key` |
@@ -315,6 +325,8 @@ deletes it after the retention period, but Telegram keeps the chat. So:
 
 - Never put passwords, API keys (including `RELAY_API_KEY`), tokens or other
   secrets in a message. Say where to find them instead.
-- Include only the personal data the reader needs.
+- Include only the personal data the reader needs. That goes for files
+  too: don't attach whole exports, `.env` files or logs full of tokens, and
+  remember the file name is shown as well.
 - Relay never echoes your content in errors or logs; don't log the message
   bodies you send or the answers you get either. Log message IDs.

@@ -14,7 +14,7 @@ import (
 // (the request's channels, or every configured one). Nothing is stored and
 // recipients are not resolved.
 func (m *Messages) Preview(req message.Request) (map[string]channel.Preview, error) {
-	req, images, err := message.Normalize(req)
+	req, atts, err := message.Normalize(req)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (m *Messages) Preview(req message.Request) (map[string]channel.Preview, err
 	for _, ch := range req.Channels {
 		want[ch] = true
 	}
-	msg := message.Message{Urgency: req.Urgency, Title: req.Title, Source: req.Source, Blocks: req.Blocks, Images: images}
+	msg := message.Message{Urgency: req.Urgency, Title: req.Title, Source: req.Source, Blocks: req.Blocks, Attachments: atts}
 	out := map[string]channel.Preview{}
 	for _, ch := range m.channels {
 		if len(want) > 0 && !want[ch.Name()] {

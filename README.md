@@ -37,7 +37,7 @@ curl -X POST https://relay.alialiabadi.ir/v1/messages \
 # → 202 {"id": "msg_01J...", "status": "queued"}
 ```
 
-Block types: `text`, `fields`, `table`, `image`, `code`, `link`, `question`. For a plain message:
+Block types: `text`, `fields`, `table`, `image`, `file`, `code`, `link`, `question`. For a plain message:
 
 ```json
 {"to": ["ali"], "text": "Deploy done: v1.2 is live"}

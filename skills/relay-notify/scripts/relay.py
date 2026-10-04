@@ -5,13 +5,15 @@ Standard library only (Python 3.8+). Use it from the shell:
 
     relay.py notify "Backup finished in 4m12s"
     relay.py notify --urgency high --title "Backup failed" --field Host=nas "Disk full"
+    relay.py notify "September invoice" --file invoice.pdf --file-caption "Due Oct 15"
     relay.py ask "Ship v2.3 to production?" --option Yes --option No --wait 3600
     relay.py answer msg_01J... --wait 600
     relay.py send < message.json          # any POST /v1/messages body
     relay.py status msg_01J...
     relay.py recipients
 
-or import it: notify(), ask(), wait_for_answer(), send(), status(), recipients().
+or import it: notify(), ask(), wait_for_answer(), send(), status(), recipients(),
+file_block().
 
 Configuration comes from the environment (see SKILL.md):
     RELAY_URL      Relay's base URL, e.g. https://relay.alialiabadi.ir (required)
@@ -24,7 +26,9 @@ Exit codes: 0 ok, 1 Relay or network error, 2 bad usage or config,
 """
 
 import argparse
+import base64
 import json
+import mimetypes
 import os
 import sys
 import time
@@ -33,6 +37,7 @@ import urllib.request
 import uuid
 
 NO_ANSWER = 3
+MAX_FILE_BYTES = 5 << 20  # Relay's limit for one file block
 
 
 class RelayError(Exception):
@@ -71,7 +76,8 @@ def _request(method, path, body=None, retries=3):
             "User-Agent": "relay-notify-skill",
         })
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            timeout = 15 if len(data or b"") < (1 << 20) else 120  # room to upload a file
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.load(resp)
         except urllib.error.HTTPError as e:
             if e.code >= 500 and attempt < retries:
@@ -105,9 +111,10 @@ def send(body):
 
 
 def notify(text=None, title=None, urgency="normal", to=None, fields=None, blocks=None,
-           key=None):
+           key=None, file=None, file_caption=None):
     """Sends a notification. fields is a dict or list of (label, value) pairs;
-    blocks are extra content blocks appended after the text and fields."""
+    blocks are extra content blocks appended after the text and fields; file
+    is a path to attach (see file_block)."""
     out = []
     if text:
         out.append({"type": "text", "text": text})
@@ -115,7 +122,29 @@ def notify(text=None, title=None, urgency="normal", to=None, fields=None, blocks
         items = fields.items() if isinstance(fields, dict) else fields
         out.append({"type": "fields", "items": [{"label": k, "value": str(v)} for k, v in items]})
     out.extend(blocks or [])
+    if file:
+        out.append(file_block(file, caption=file_caption))
     return send(_envelope(out, title, urgency, to, key))
+
+
+def file_block(path, caption=None, filename=None, content_type=None):
+    """Builds a file block from a local file (one per message, up to 5 MB).
+    The recipient sees filename (default: the file's own name), so make sure
+    it gives nothing away the reader shouldn't see."""
+    size = os.path.getsize(path)
+    if size == 0 or size > MAX_FILE_BYTES:
+        raise RelayError(0, "file", f"file must be 1 byte to {MAX_FILE_BYTES} bytes, got {size}")
+    with open(path, "rb") as f:
+        data = f.read()
+    block = {
+        "type": "file",
+        "filename": filename or os.path.basename(path),
+        "content_type": content_type or mimetypes.guess_type(path)[0] or "application/octet-stream",
+        "base64": base64.b64encode(data).decode("ascii"),
+    }
+    if caption:
+        block["caption"] = caption
+    return block
 
 
 def ask(question, options=None, text=None, title=None, urgency="normal", to=None,
@@ -192,6 +221,8 @@ def _cli(argv):
     n = sub.add_parser("notify", help="send a notification")
     n.add_argument("text", nargs="?")
     n.add_argument("--field", action="append", metavar="LABEL=VALUE", help="a fields line (repeatable)")
+    n.add_argument("--file", metavar="PATH", help="attach a file (up to 5 MB), sent as a Telegram document")
+    n.add_argument("--file-caption", help="caption shown under the file")
     common(n)
 
     a = sub.add_parser("ask", help="ask a question; prints the message ID, or the answer with --wait")
@@ -215,10 +246,12 @@ def _cli(argv):
 
     args = p.parse_args(argv)
     if args.cmd == "notify":
-        if not args.text and not args.field:
-            p.error("notify needs text or --field")
+        if not args.text and not args.field and not args.file:
+            p.error("notify needs text, --field or --file")
+        if args.file_caption and not args.file:
+            p.error("--file-caption needs --file")
         return notify(args.text, args.title, args.urgency, args.to, _parse_fields(args.field),
-                      key=args.key)
+                      key=args.key, file=args.file, file_caption=args.file_caption)
     if args.cmd == "ask":
         mid = ask(args.question, args.option, args.text, args.title, args.urgency, args.to,
                   args.webhook, args.key)
@@ -250,6 +283,9 @@ def main():
         sys.exit(1)
     except json.JSONDecodeError:
         print("relay: stdin is not valid JSON", file=sys.stderr)
+        sys.exit(2)
+    except OSError as e:
+        print(f"relay: can't read file: {e.strerror}", file=sys.stderr)
         sys.exit(2)
 
 

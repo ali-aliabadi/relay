@@ -154,7 +154,7 @@ func (w *Worker) send(ctx context.Context, d store.Delivery) (string, error) {
 		return "", channel.Permanent("stored blocks are unreadable")
 	}
 	for _, a := range atts {
-		msg.Images = append(msg.Images, message.Image{ContentType: a.ContentType, Bytes: a.Bytes})
+		msg.Attachments = append(msg.Attachments, message.Attachment{ContentType: a.ContentType, Bytes: a.Bytes})
 	}
 	sctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()

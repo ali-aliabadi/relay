@@ -1,8 +1,6 @@
 package message
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"
@@ -43,9 +41,10 @@ func (c *checker) required(path, s string, limit int) {
 }
 
 // Normalize applies defaults (urgency, the text shorthand), validates the
-// request and moves inline image bytes out of the blocks. The returned
-// request's image blocks reference the returned images by index.
-func Normalize(req Request) (Request, []Image, error) {
+// request and moves inline image and file bytes out of the blocks. The
+// returned request's image and file blocks reference the returned
+// attachments by index.
+func Normalize(req Request) (Request, []Attachment, error) {
 	c := &checker{}
 	if req.Urgency == "" {
 		req.Urgency = UrgencyNormal
@@ -60,32 +59,30 @@ func Normalize(req Request) (Request, []Image, error) {
 	checkEnvelope(c, req)
 	blocks := make([]Block, len(req.Blocks))
 	copy(blocks, req.Blocks)
-	var images []Image
-	imageBlocks, questionBlocks := 0, 0
+	var atts []Attachment
+	count := map[string]int{}
 	for i := range blocks {
-		switch blocks[i].Type {
-		case BlockImage:
-			imageBlocks++
-		case BlockQuestion:
-			questionBlocks++
-		}
-		if img, ok := checkBlock(c, fmt.Sprintf("blocks[%d]", i), &blocks[i]); ok {
-			n := len(images)
+		count[blocks[i].Type]++
+		if att, ok := checkBlock(c, fmt.Sprintf("blocks[%d]", i), &blocks[i]); ok {
+			n := len(atts)
 			blocks[i].Attachment = &n
-			images = append(images, img)
+			atts = append(atts, att)
 		}
 	}
-	if imageBlocks > MaxImages {
+	if count[BlockImage] > MaxImages {
 		c.addf("blocks: at most %d image", MaxImages)
 	}
-	if questionBlocks > 1 {
+	if count[BlockFile] > MaxFiles {
+		c.addf("blocks: at most %d file", MaxFiles)
+	}
+	if count[BlockQuestion] > 1 {
 		c.addf("blocks: at most 1 question")
 	}
 	if len(c.problems) > 0 {
 		return Request{}, nil, &ValidationError{Problems: c.problems}
 	}
 	req.Blocks = blocks
-	return req, images, nil
+	return req, atts, nil
 }
 
 func checkEnvelope(c *checker, req Request) {
@@ -124,9 +121,9 @@ func checkUnique(c *checker, path string, values []string) {
 	}
 }
 
-// checkBlock validates one block. For an inline image it returns the decoded
-// bytes and clears Base64 so the stored blocks don't hold them.
-func checkBlock(c *checker, path string, b *Block) (Image, bool) {
+// checkBlock validates one block. For an inline image or a file it returns
+// the decoded bytes and clears Base64 so the stored blocks don't hold them.
+func checkBlock(c *checker, path string, b *Block) (Attachment, bool) {
 	if b.Attachment != nil {
 		c.addf("%s.attachment: set by Relay, not by callers", path)
 	}
@@ -147,12 +144,14 @@ func checkBlock(c *checker, path string, b *Block) (Image, bool) {
 		checkURL(c, path+".url", b.URL)
 	case BlockImage:
 		return checkImage(c, path, b)
+	case BlockFile:
+		return checkFile(c, path, b)
 	case BlockQuestion:
 		checkQuestion(c, path, b)
 	default:
-		c.addf("%s.type: must be one of text, fields, table, image, code, link, question", path)
+		c.addf("%s.type: must be one of text, fields, table, image, file, code, link, question", path)
 	}
-	return Image{}, false
+	return Attachment{}, false
 }
 
 func checkQuestion(c *checker, path string, b *Block) {
@@ -213,54 +212,4 @@ func checkURL(c *checker, path, raw string) {
 	if err != nil || len(raw) > MaxURLLen || u.Scheme != "https" || u.Host == "" {
 		c.addf("%s: must be an https URL up to %d characters", path, MaxURLLen)
 	}
-}
-
-var magic = map[string][]byte{
-	"image/png":  []byte("\x89PNG\r\n\x1a\n"),
-	"image/jpeg": {0xFF, 0xD8, 0xFF},
-}
-
-func checkImage(c *checker, path string, b *Block) (Image, bool) {
-	c.maxLen(path+".caption", b.Caption, MaxCaptionLen)
-	switch {
-	case b.URL != "" && b.Base64 != "":
-		c.addf("%s: use either url or base64, not both", path)
-	case b.URL != "":
-		checkURL(c, path+".url", b.URL)
-		if b.ContentType != "" {
-			c.addf("%s.content_type: only used with base64", path)
-		}
-	case b.Base64 != "":
-		return decodeImage(c, path, b)
-	default:
-		c.addf("%s: needs url or base64", path)
-	}
-	return Image{}, false
-}
-
-func decodeImage(c *checker, path string, b *Block) (Image, bool) {
-	sig, ok := magic[b.ContentType]
-	if !ok {
-		c.addf("%s.content_type: must be image/png or image/jpeg", path)
-		return Image{}, false
-	}
-	if base64.StdEncoding.DecodedLen(len(b.Base64)) > MaxImageBytes+3 {
-		c.addf("%s.base64: image larger than %d bytes", path, MaxImageBytes)
-		return Image{}, false
-	}
-	data, err := base64.StdEncoding.DecodeString(b.Base64)
-	if err != nil {
-		c.addf("%s.base64: not valid standard base64", path)
-		return Image{}, false
-	}
-	if len(data) > MaxImageBytes {
-		c.addf("%s.base64: image larger than %d bytes", path, MaxImageBytes)
-		return Image{}, false
-	}
-	if !bytes.HasPrefix(data, sig) {
-		c.addf("%s.base64: content is not a %s image", path, b.ContentType)
-		return Image{}, false
-	}
-	b.Base64 = ""
-	return Image{ContentType: b.ContentType, Bytes: data}, true
 }

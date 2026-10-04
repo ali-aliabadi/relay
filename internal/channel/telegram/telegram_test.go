@@ -34,6 +34,8 @@ type call struct {
 	JSON        map[string]any
 	Form        map[string]string
 	FileBytes   []byte
+	FileName    string // uploaded file's name and part Content-Type
+	FileType    string
 	ContentType string
 }
 
@@ -56,9 +58,11 @@ func (b *botAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for k, v := range r.MultipartForm.Value {
 			c.Form[k] = v[0]
 		}
-		f, _, err := r.FormFile("photo")
-		if err == nil {
-			c.FileBytes, _ = io.ReadAll(f)
+		for _, field := range []string{"photo", "document"} {
+			if f, h, err := r.FormFile(field); err == nil {
+				c.FileBytes, _ = io.ReadAll(f)
+				c.FileName, c.FileType = h.Filename, h.Header.Get("Content-Type")
+			}
 		}
 	} else {
 		_ = json.NewDecoder(r.Body).Decode(&c.JSON)
@@ -120,8 +124,8 @@ func TestSendPhotoURLAndInline(t *testing.T) {
 	png := append([]byte("\x89PNG\r\n\x1a\n"), 1, 2, 3)
 	if _, err := ch.Send(t.Context(), channel.Contact{Address: "42"}, message.Message{
 		Urgency: "normal", Title: "Chart",
-		Blocks: []message.Block{{Type: "image", Attachment: idx(0)}, {Type: "link", Text: "Go", URL: "https://e.x"}},
-		Images: []message.Image{{ContentType: "image/png", Bytes: png}},
+		Blocks:      []message.Block{{Type: "image", Attachment: idx(0)}, {Type: "link", Text: "Go", URL: "https://e.x"}},
+		Attachments: []message.Attachment{{ContentType: "image/png", Bytes: png}},
 	}); err != nil {
 		t.Fatal(err)
 	}

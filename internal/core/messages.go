@@ -34,7 +34,7 @@ func NewMessages(s *store.Store, channels []channel.Channel) *Messages {
 // its deliveries. A repeated idempotency key returns the original message and
 // created=false. Invalid requests return a *message.ValidationError.
 func (m *Messages) Create(ctx context.Context, clientID, requestID string, req message.Request) (store.Message, bool, error) {
-	req, images, err := message.Normalize(req)
+	req, atts, err := message.Normalize(req)
 	if err != nil {
 		return store.Message{}, false, err
 	}
@@ -65,8 +65,8 @@ func (m *Messages) Create(ctx context.Context, clientID, requestID string, req m
 		},
 		Deliveries: plan,
 	}
-	for _, img := range images {
-		nm.Attachments = append(nm.Attachments, store.Attachment{ContentType: img.ContentType, Bytes: img.Bytes})
+	for _, a := range atts {
+		nm.Attachments = append(nm.Attachments, store.Attachment{ContentType: a.ContentType, Bytes: a.Bytes})
 	}
 	created, err := m.store.CreateMessage(ctx, nm)
 	if errors.Is(err, store.ErrConflict) && req.IdempotencyKey != "" {
