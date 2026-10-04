@@ -30,6 +30,10 @@ type pollerRig struct {
 	claims   []string          // "username chat"
 	invited  map[string]string // username → display name
 	claimErr error
+	invite   InviteReply // what Invite returns
+	invites  []string    // "chat args" per /invite
+	claimed  Claimed     // what ClaimLink returns
+	links    []string    // "token chat" per opened invite link
 }
 
 type syncBuf struct {
@@ -78,6 +82,18 @@ func startPoller(t *testing.T, wrap func(http.Handler) http.Handler) *pollerRig 
 			r.claims = append(r.claims, username+" "+chatID)
 			name, ok := r.invited[username]
 			return name, ok, r.claimErr
+		},
+		Invite: func(_ context.Context, chatID, args string) (InviteReply, error) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.invites = append(r.invites, chatID+" "+args)
+			return r.invite, r.err
+		},
+		ClaimLink: func(_ context.Context, token, chatID string) (Claimed, error) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.links = append(r.links, token+" "+chatID)
+			return r.claimed, r.err
 		},
 		Logger:  obs.NewLogger(r.logs, slog.LevelInfo),
 		Backoff: 10 * time.Millisecond,

@@ -13,7 +13,7 @@ type PurgeResult struct {
 	Redacted           int64 // messages whose content was dropped
 	AttachmentsDeleted int64
 	AnswersDeleted     int64
-	InvitesDeleted     int64 // expired invites, deleted by the caller's pass
+	InvitesDeleted     int64 // expired invites and invite links, deleted by the caller's pass
 	MessagesDeleted    int64 // messages (with deliveries) deleted entirely
 }
 

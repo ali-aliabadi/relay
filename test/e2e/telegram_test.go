@@ -67,6 +67,7 @@ func startStack(t *testing.T) *stack {
 			"RELAY_TELEGRAM_BOT_TOKEN":   fakeToken,
 			"RELAY_TELEGRAM_API_URL":     "http://telegram:8081",
 			"RELAY_WORKER_POLL_INTERVAL": "200ms",
+			"RELAY_ADMIN_RECIPIENT":      "admin",
 		}),
 	)
 	s := &stack{t: t, relay: relay, fake: fakeURL}

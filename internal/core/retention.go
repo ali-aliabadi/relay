@@ -45,6 +45,11 @@ func (r *Retention) Pass(ctx context.Context) {
 	if err == nil {
 		res.InvitesDeleted, err = r.Store.DeleteInvitesBefore(ctx, now.Add(-InviteTTL))
 	}
+	if err == nil {
+		var links int64
+		links, err = r.Store.DeleteLinkTokensBefore(ctx, now)
+		res.InvitesDeleted += links
+	}
 	if err != nil {
 		if ctx.Err() == nil {
 			r.Logger.Error("retention pass failed", slog.String("error", err.Error()))

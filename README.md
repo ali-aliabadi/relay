@@ -128,6 +128,11 @@ the container:
 cd /opt/relay && docker compose exec relay relay clients create my-app
 ```
 
+To add a person without the terminal, set `RELAY_ADMIN_RECIPIENT=admin` in
+`/opt/relay/.env` once, then send the bot `/invite sara Sara` from your own
+linked chat. It replies with a one-time link (24 hours) to forward; when they
+tap it and press Start, they're linked and the bot tells you.
+
 One-time setup is listed under "Phase 0" in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Configuration

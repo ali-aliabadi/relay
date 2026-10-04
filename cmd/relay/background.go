@@ -85,7 +85,9 @@ func newPoller(cfg config.Config, logger *slog.Logger, st *store.Store, webhooks
 			}
 			return rcp.DisplayName, ok, err
 		},
-		Logger: logger,
+		Invite:    botInvite(cfg.AdminRecipient, recipients, logger),
+		ClaimLink: botClaimLink(cfg.AdminRecipient, recipients, logger),
+		Logger:    logger,
 	}
 }
 
