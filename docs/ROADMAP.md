@@ -9,11 +9,11 @@ should be one small PR unless noted. Design details are in
 
 - [x] Point DNS `relay.alialiabadi.ir` (A/AAAA record) at the VPS
 - [x] Check whether anything on the VPS already uses ports 80/443: nginx does, so Relay sits behind it (no Caddy)
-- [ ] Create the Telegram bot with @BotFather and keep the token
-- [ ] On the VPS: create `/opt/relay` and `/opt/relay/.env` with `RELAY_TELEGRAM_BOT_TOKEN` (`chmod 600`)
-- [ ] Generate `RELAY_ENCRYPTION_KEY` (`openssl rand -base64 32`), put it in `.env` and keep a copy in a password manager
-- [ ] Create a deploy SSH key pair; add the public key to the deploy user's `authorized_keys` on the VPS
-- [ ] Add GitHub secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS` (output of `ssh-keyscan <host>`, checked against the VPS) and `VPS_PORT` if not 22
+- [x] Create the Telegram bot with @BotFather and keep the token
+- [x] On the VPS: create `/opt/relay` and `/opt/relay/.env` with `RELAY_TELEGRAM_BOT_TOKEN` (`chmod 600`)
+- [x] Generate `RELAY_ENCRYPTION_KEY` (`openssl rand -base64 32`), put it in `.env` and keep a copy in a password manager
+- [x] Create a deploy SSH key pair; add the public key to the deploy user's `authorized_keys` on the VPS
+- [x] Add GitHub secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS` (output of `ssh-keyscan <host>`, checked against the VPS) and `VPS_PORT` if not 22
 - [ ] Protect `master` (require PRs and green CI)
 
 ## Phase 1: skeleton and tooling
@@ -77,7 +77,7 @@ should be one small PR unless noted. Design details are in
 - [x] `.github/workflows/deploy.yml`: build + push to GHCR, copy `deploy/` over SSH, `docker compose pull && up -d`, check `/healthz`
 - [x] Docker log rotation (`json-file` `max-size`) in compose
 - [x] Full `relay-security-review` skill pass over the whole codebase before first deploy
-- [ ] First production deploy; register ali and ali's wife; send a real message to each
+- [x] First production deploy; register ali and ali's wife; send a real message to each
 - [ ] README "Running locally" verified against reality
 
 ## Phase 7: answers
