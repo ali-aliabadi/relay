@@ -16,8 +16,8 @@ or import it: notify(), ask(), wait_for_answer(), send(), status(), recipients()
 Configuration comes from the environment (see SKILL.md):
     RELAY_URL      Relay's base URL, e.g. https://relay.alialiabadi.ir (required)
     RELAY_API_KEY  this app's API key (required; never print or log it)
+    RELAY_APP      this app's name, sent as every message's source (required)
     RELAY_ADMIN    who to notify when no --to is given (default: admin)
-    RELAY_SOURCE   this app's name, shown as "via <source>" (optional)
 
 Exit codes: 0 ok, 1 Relay or network error, 2 bad usage or config,
 3 nobody answered before --wait ran out.
@@ -47,10 +47,11 @@ class RelayError(Exception):
 def _config():
     url = os.environ.get("RELAY_URL", "").strip().rstrip("/")
     key = os.environ.get("RELAY_API_KEY", "").strip()
-    if not url or not key:
-        print("relay: set RELAY_URL and RELAY_API_KEY (ask the user for them)", file=sys.stderr)
+    app = os.environ.get("RELAY_APP", "").strip()
+    if not url or not key or not app:
+        print("relay: set RELAY_URL, RELAY_API_KEY and RELAY_APP (ask the user for them)", file=sys.stderr)
         sys.exit(2)
-    return url, key
+    return url, key, app
 
 
 def admin():
@@ -61,7 +62,7 @@ def admin():
 def _request(method, path, body=None, retries=3):
     """Calls Relay. 5xx and network errors are retried with backoff; callers
     make POSTs safe to retry by always sending an idempotency_key."""
-    url, key = _config()
+    url, key, _ = _config()
     data = json.dumps(body).encode() if body is not None else None
     for attempt in range(retries + 1):
         req = urllib.request.Request(url + path, data=data, method=method, headers={
@@ -95,17 +96,16 @@ def _api_error(e):
 
 def send(body):
     """POSTs a full /v1/messages body. Fills in to (RELAY_ADMIN), source
-    (RELAY_SOURCE) and idempotency_key when missing. Returns {"id", "status"}."""
+    (RELAY_APP) and idempotency_key when missing. Returns {"id", "status"}."""
     body = dict(body)
     body.setdefault("to", [admin()])
-    if os.environ.get("RELAY_SOURCE"):
-        body.setdefault("source", os.environ["RELAY_SOURCE"])
+    body.setdefault("source", _config()[2])
     body.setdefault("idempotency_key", "auto-" + uuid.uuid4().hex)
     return _request("POST", "/v1/messages", body)
 
 
 def notify(text=None, title=None, urgency="normal", to=None, fields=None, blocks=None,
-           source=None, key=None):
+           key=None):
     """Sends a notification. fields is a dict or list of (label, value) pairs;
     blocks are extra content blocks appended after the text and fields."""
     out = []
@@ -115,11 +115,11 @@ def notify(text=None, title=None, urgency="normal", to=None, fields=None, blocks
         items = fields.items() if isinstance(fields, dict) else fields
         out.append({"type": "fields", "items": [{"label": k, "value": str(v)} for k, v in items]})
     out.extend(blocks or [])
-    return send(_envelope(out, title, urgency, to, source, key))
+    return send(_envelope(out, title, urgency, to, key))
 
 
 def ask(question, options=None, text=None, title=None, urgency="normal", to=None,
-        webhook=None, source=None, key=None):
+        webhook=None, key=None):
     """Asks a question: buttons with options, otherwise a typed reply.
     Returns the message ID to pass to wait_for_answer()."""
     out = [{"type": "text", "text": text}] if text else []
@@ -129,12 +129,12 @@ def ask(question, options=None, text=None, title=None, urgency="normal", to=None
     if webhook:
         q["webhook"] = webhook
     out.append(q)
-    return send(_envelope(out, title, urgency, to, source, key))["id"]
+    return send(_envelope(out, title, urgency, to, key))["id"]
 
 
-def _envelope(blocks, title, urgency, to, source, key):
+def _envelope(blocks, title, urgency, to, key):
     body = {"to": list(to) if to else [admin()], "urgency": urgency, "blocks": blocks}
-    for name, value in (("title", title), ("source", source), ("idempotency_key", key)):
+    for name, value in (("title", title), ("idempotency_key", key)):
         if value:
             body[name] = value
     return body
@@ -187,7 +187,6 @@ def _cli(argv):
         sp.add_argument("--to", action="append", help="recipient username or alias (repeatable; default $RELAY_ADMIN or admin)")
         sp.add_argument("--urgency", default="normal", choices=["low", "normal", "high", "critical"])
         sp.add_argument("--title")
-        sp.add_argument("--source", help="your app's name (default $RELAY_SOURCE)")
         sp.add_argument("--key", help="idempotency key; reuse it when retrying the same notification")
 
     n = sub.add_parser("notify", help="send a notification")
@@ -219,10 +218,10 @@ def _cli(argv):
         if not args.text and not args.field:
             p.error("notify needs text or --field")
         return notify(args.text, args.title, args.urgency, args.to, _parse_fields(args.field),
-                      source=args.source, key=args.key)
+                      key=args.key)
     if args.cmd == "ask":
         mid = ask(args.question, args.option, args.text, args.title, args.urgency, args.to,
-                  args.webhook, args.source, args.key)
+                  args.webhook, args.key)
         if args.wait is None:
             return {"id": mid}
         return _waited(mid, args.wait, args.every)

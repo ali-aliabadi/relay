@@ -18,16 +18,26 @@ Environment variables, set by whoever runs your app:
 |---|---|---|
 | `RELAY_URL` | yes | Relay's base URL (host), e.g. `https://relay.alialiabadi.ir` |
 | `RELAY_API_KEY` | yes | This app's API key (`rk_...`). The admin creates one per app with `relay clients create <app-name>` |
+| `RELAY_APP` | yes | Your app's name (e.g. `backup-script`), sent as every message's `source`. Relay records it, so the admin can see which app sends what and debug it; the reader sees "via backup-script" |
 | `RELAY_ADMIN` | no, default `admin` | Who to notify when you don't know who else: a recipient's username or alias |
-| `RELAY_SOURCE` | no | Your app's name, shown under each message as "via <source>" |
 
-If `RELAY_URL` or `RELAY_API_KEY` is missing, stop and ask the user for it;
+If `RELAY_URL`, `RELAY_API_KEY` or `RELAY_APP` is missing, stop and ask the user for it;
 never guess or invent one. **The API key is a secret:** read it from the
 environment only. Never print it, log it, echo it in a reply, put it in a
 message, or commit it (not in code, `.env` files under version control, test
 fixtures or examples).
 
-## The tool: `scripts/relay.py`
+## The tools
+
+Two ready-made clients do the plumbing; use the one matching your app's
+language, or call the HTTP API below directly from any other.
+
+- **Go:** [`references/go.md`](references/go.md) has a single-file client to
+  copy into your app (`relay.FromEnv()`, `Notify`, `Send`, `Ask`,
+  `Answers`, `WaitForAnswer`), with usage. Read it when the app is in Go.
+- **Python or shell:** `scripts/relay.py`, below.
+
+### `scripts/relay.py`
 
 [`scripts/relay.py`](scripts/relay.py) (Python 3.8+, standard library only) is
 the quickest way to use Relay. It reads the variables above, sends to
@@ -60,7 +70,7 @@ python3 $R recipients             # who exists
 ```
 
 Common options: `--to NAME` (repeatable), `--urgency low|normal|high|critical`,
-`--title`, `--source`, `--key` (your own idempotency key). Exit codes: `0` ok,
+`--title`, `--key` (your own idempotency key). Exit codes: `0` ok,
 `1` Relay or network error (message on stderr, e.g.
 `relay: 422 invalid_request: to[0]: unknown recipient`), `2` bad usage or
 missing config, `3` nobody answered before `--wait` ran out (stdout has
@@ -80,7 +90,8 @@ if got and got["answer"] == "Yes":
 ```
 
 Errors raise `relay.RelayError` with `.status`, `.code` and `.problems`.
-Other languages: call the HTTP API below directly.
+Other languages: call the HTTP API below directly, and always send
+`source` set to `RELAY_APP`.
 
 ## Who to send to
 
@@ -147,7 +158,8 @@ curl -sS -X POST "$RELAY_URL/v1/messages" \
   }'
 ```
 
-Always set `source` to your app's name so the reader knows who's talking.
+Always set `source` to `RELAY_APP`: it's how the admin tells apps apart in
+Relay's records, and the reader sees who's talking.
 
 | Field | Notes |
 |---|---|
