@@ -19,7 +19,8 @@ Configuration comes from the environment (see SKILL.md):
     RELAY_URL      Relay's base URL, e.g. https://relay.alialiabadi.ir (required)
     RELAY_API_KEY  this app's API key (required; never print or log it)
     RELAY_APP      this app's name, sent as every message's source (required)
-    RELAY_ADMIN    who to notify when no --to is given (default: admin)
+    RELAY_USER     who to notify when no --to is given (default: admin;
+                   the old name RELAY_ADMIN is still read as a fallback)
 
 Exit codes: 0 ok, 1 Relay or network error, 2 bad usage or config,
 3 nobody answered before --wait ran out.
@@ -59,9 +60,16 @@ def _config():
     return url, key, app
 
 
-def admin():
-    """The default recipient: $RELAY_ADMIN, or "admin"."""
-    return os.environ.get("RELAY_ADMIN", "").strip() or "admin"
+def user():
+    """The default recipient: $RELAY_USER, else the old $RELAY_ADMIN, else "admin"."""
+    for name in ("RELAY_USER", "RELAY_ADMIN"):
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return "admin"
+
+
+admin = user  # old name, kept for apps that already import it
 
 
 def _request(method, path, body=None, retries=3):
@@ -101,10 +109,10 @@ def _api_error(e):
 
 
 def send(body):
-    """POSTs a full /v1/messages body. Fills in to (RELAY_ADMIN), source
+    """POSTs a full /v1/messages body. Fills in to (RELAY_USER), source
     (RELAY_APP) and idempotency_key when missing. Returns {"id", "status"}."""
     body = dict(body)
-    body.setdefault("to", [admin()])
+    body.setdefault("to", [user()])
     body.setdefault("source", _config()[2])
     body.setdefault("idempotency_key", "auto-" + uuid.uuid4().hex)
     return _request("POST", "/v1/messages", body)
@@ -162,7 +170,7 @@ def ask(question, options=None, text=None, title=None, urgency="normal", to=None
 
 
 def _envelope(blocks, title, urgency, to, key):
-    body = {"to": list(to) if to else [admin()], "urgency": urgency, "blocks": blocks}
+    body = {"to": list(to) if to else [user()], "urgency": urgency, "blocks": blocks}
     for name, value in (("title", title), ("idempotency_key", key)):
         if value:
             body[name] = value
@@ -213,7 +221,7 @@ def _cli(argv):
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def common(sp):
-        sp.add_argument("--to", action="append", help="recipient username or alias (repeatable; default $RELAY_ADMIN or admin)")
+        sp.add_argument("--to", action="append", help="recipient username or alias (repeatable; default $RELAY_USER or admin)")
         sp.add_argument("--urgency", default="normal", choices=["low", "normal", "high", "critical"])
         sp.add_argument("--title")
         sp.add_argument("--key", help="idempotency key; reuse it when retrying the same notification")
