@@ -66,6 +66,14 @@ type Invite struct {
 	CreatedAt   string
 }
 
+type LinkToken struct {
+	TokenHash   []byte
+	RecipientID string
+	Channel     string
+	CreatedAt   string
+	ExpiresAt   string
+}
+
 type Message struct {
 	ID             string
 	ClientID       string

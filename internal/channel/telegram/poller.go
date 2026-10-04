@@ -21,8 +21,14 @@ type Poller struct {
 	// ClaimInvite links chatID if the admin invited this Telegram username,
 	// returning the recipient's display name and whether an invite matched.
 	ClaimInvite func(ctx context.Context, username, chatID string) (name string, ok bool, err error)
-	Logger      *slog.Logger
-	Backoff     time.Duration // after a failed poll; 5s when zero
+	// Invite handles /invite from chatID; nil turns the command off.
+	Invite func(ctx context.Context, chatID, args string) (InviteReply, error)
+	// ClaimLink links chatID with the token of an invite link (/start <token>).
+	ClaimLink func(ctx context.Context, token, chatID string) (Claimed, error)
+	Logger    *slog.Logger
+	Backoff   time.Duration // after a failed poll; 5s when zero
+
+	bot string // the bot's username, cached by botUsername; poller goroutine only
 }
 
 // Feedback shown to the person who replied, by outcome.
@@ -120,6 +126,14 @@ func (p *Poller) handleTap(ctx context.Context, q *CallbackQuery) error {
 
 func (p *Poller) handleMessage(ctx context.Context, m *UpdateMessage) error {
 	chat := m.Chat.ID
+	switch cmd, args := splitCommand(m.Text); {
+	case cmd == "/start" && args != "" && p.ClaimLink != nil:
+		return p.handleInviteLink(ctx, chat, args)
+	case cmd == "/invite":
+		if handled, err := p.handleInvite(ctx, chat, args); handled {
+			return err
+		}
+	}
 	if strings.HasPrefix(m.Text, "/start") {
 		if m.From.Username != "" {
 			name, ok, err := p.ClaimInvite(ctx, m.From.Username, strconv.FormatInt(chat, 10))

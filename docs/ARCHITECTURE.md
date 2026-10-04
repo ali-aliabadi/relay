@@ -25,7 +25,7 @@ message and delivery attempt.
 
 ## Scope
 
-- Users: ali and ali's wife, registered by hand via the admin CLI.
+- Users: ali and ali's wife, registered by the admin via the bot's `/invite` or the admin CLI.
 - MVP channel: Telegram only. SMS comes later; provider not chosen yet.
 - Hosting: existing VPS (`german-vps`) with Docker, behind the VPS's existing nginx at `relay.alialiabadi.ir`.
 - Deploy: merging to `master` deploys via GitHub Actions.
@@ -109,6 +109,7 @@ answers          message_id, recipient_id, answer, answered_at, fetched_at NULL
 invites          recipient_id, channel, handle (Telegram username), created_at
                  PRIMARY KEY (recipient_id, channel)
 aliases          name (PK), recipient_id, created_at
+link_tokens      token_hash (PK, SHA-256), recipient_id, channel, created_at, expires_at
 ```
 
 Tables are SQLite `STRICT`. Times are stored as UTC text in a fixed-width format
@@ -237,6 +238,33 @@ code (the chat ID encrypted with `RELAY_ENCRYPTION_KEY`, valid for an hour, so
 it reveals nothing and can't be forged), and `relay recipients link sara <code>`
 links it.
 
+### Inviting from Telegram
+
+The easiest way to add someone needs no terminal. With
+`RELAY_ADMIN_RECIPIENT=admin` (a username or alias whose Telegram chat is
+already linked), the admin sends the bot:
+
+```
+/invite sara Sara
+```
+
+Relay adds `sara` (display name `Sara`, the admin's timezone) if she doesn't
+exist yet and replies with a one-time link `https://t.me/<bot>?start=<token>`.
+The admin forwards it; she taps it, then Start, and her chat is linked. The bot
+confirms to her and tells the admin "Sara opened your invite".
+
+- Only the admin's linked private chat can use `/invite`; anyone else gets the
+  usual hint, and the command is off when `RELAY_ADMIN_RECIPIENT` is unset.
+- The token is 32 random bytes (base64url, fits Telegram's 64-character
+  `start` limit). Only its SHA-256 is stored, the claim deletes it in the same
+  statement (single use), it expires after 24 hours, and a new `/invite` for
+  the same person voids the previous link. It is never logged.
+- Whoever holds the link can claim it, so it is only as private as the chat it
+  is forwarded through. The short lifetime and the admin's "opened your
+  invite" notice bound that: an unexpected notice means re-invite to move the
+  link to the right chat. Claiming also drops a pending `@username` invite for
+  that person.
+
 ### Answers
 
 `serve` long-polls `getUpdates` (no webhook, so nothing changes in nginx or
@@ -263,6 +291,7 @@ loses nothing.
 | `RELAY_METRICS_ADDR` | `127.0.0.1:9090` | Internal listener for `/metrics` (and `/debug/pprof` when `RELAY_PPROF=true`) |
 | `RELAY_PPROF` | `false` | Serve `/debug/pprof` on the metrics listener |
 | `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image) |
+| `RELAY_ADMIN_RECIPIENT` | *(empty)* | Username or alias allowed to send `/invite` to the bot from their linked Telegram chat; empty turns it off |
 | `RELAY_TRUST_FORWARDED_FOR` | `false` | Take the client IP from the last `X-Forwarded-For` entry (set by compose, since Relay is only reachable through nginx on the same host) |
 
 ## Privacy and security
@@ -272,7 +301,7 @@ leaked API key, a leaked DB file or backup, logs shipped somewhere, a malicious
 payload (markup injection, oversized or fake images), and a compromised dependency.
 
 - **Encryption at rest:** private columns are encrypted with AES-256-GCM (random nonce per value, key version byte prefix for future rotation). The column and row ID are bound in as associated data, so a ciphertext copied to another row fails to decrypt. Search never needs these columns.
-- **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days; expired invites are deleted.
+- **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days; expired invites and invite links are deleted.
 - **Transport:** HTTPS only: Cloudflare terminates public TLS and reaches nginx over TLS (SSL mode Full). Relay listens on the host's loopback only.
 - **Auth:** per-client API keys (`rk_` + 32 random bytes), SHA-256 hashed, constant-time compare, revocable. Failed auth is rate-limited per IP: 10 failures in 10 minutes and that IP gets `429` with `Retry-After` until the window ends. Counts live in memory only and IPs are never logged.
 - **Input handling:** body size limit, strict JSON decoding, block limits, every value HTML-escaped by the Telegram layout, `link`/`image`/`webhook` URLs restricted to `https`, inline images type-checked by magic bytes. Relay fetches no URLs itself (Telegram fetches image URLs) except question webhooks, which carry no content and may only reach public addresses.

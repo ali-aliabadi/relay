@@ -60,6 +60,12 @@ func (s *Server) AddStartFrom(chatID int64, username string) {
 	s.addMessage(chatID, 0, "/start", username)
 }
 
+// AddText queues a private text message (a command, say) from a user with
+// this Telegram username ("" for none).
+func (s *Server) AddText(chatID int64, text, username string) {
+	s.addMessage(chatID, 0, text, username)
+}
+
 // AddReply queues a private text message, replying to message replyTo when
 // it is not zero.
 func (s *Server) AddReply(chatID, replyTo int64, text string) {
