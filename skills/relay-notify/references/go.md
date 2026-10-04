@@ -4,12 +4,12 @@ A single-file, standard-library client. Copy the code below into your app as
 `internal/relay/relay.go` (any package path works; Go 1.22+), then:
 
 ```go
-rc, err := relay.FromEnv() // RELAY_URL, RELAY_API_KEY, RELAY_APP, RELAY_ADMIN (default "admin")
+rc, err := relay.FromEnv() // RELAY_URL, RELAY_API_KEY, RELAY_APP, RELAY_USER (default "admin")
 if err != nil {
 	return err // missing config: ask the user for it, never guess
 }
 
-// Notify the admin
+// Notify the default user
 id, err := rc.Notify(ctx, "low", "", "Nightly backup finished in 4m12s.")
 
 // Anything richer: build the message from blocks (no templates)
@@ -49,7 +49,7 @@ if errors.As(err, &re) && re.Code == "invalid_request" {
 }
 ```
 
-`Send` fills in `To` (the admin), `Source` (`RELAY_APP`) and a random
+`Send` fills in `To` (`RELAY_USER`), `Source` (`RELAY_APP`) and a random
 idempotency key when you leave them empty, and retries 5xx and network errors
 with that same key, so a retry never sends twice. Pass your own
 `IdempotencyKey` to make retries across restarts safe too. Never log
@@ -109,7 +109,7 @@ type Field struct {
 }
 
 // Message is the body of POST /v1/messages. Empty To and Source are filled
-// from RELAY_ADMIN and RELAY_APP; an empty IdempotencyKey gets a random one.
+// from RELAY_USER and RELAY_APP; an empty IdempotencyKey gets a random one.
 type Message struct {
 	To             []string `json:"to"`
 	Urgency        string   `json:"urgency,omitempty"`
@@ -144,21 +144,25 @@ func (e *Error) Error() string {
 
 // Client talks to one Relay. Never log or print APIKey.
 type Client struct {
-	URL, APIKey, Admin, App string
-	HTTP                    *http.Client
+	URL, APIKey, User, App string
+	HTTP                   *http.Client
 }
 
-// FromEnv reads RELAY_URL, RELAY_API_KEY, RELAY_APP and RELAY_ADMIN (default "admin").
+// FromEnv reads RELAY_URL, RELAY_API_KEY, RELAY_APP and RELAY_USER (default
+// "admin"; the old name RELAY_ADMIN is still read when RELAY_USER is unset).
 func FromEnv() (*Client, error) {
 	c := &Client{
 		URL:    strings.TrimRight(strings.TrimSpace(os.Getenv("RELAY_URL")), "/"),
 		APIKey: strings.TrimSpace(os.Getenv("RELAY_API_KEY")),
 		App:    strings.TrimSpace(os.Getenv("RELAY_APP")),
-		Admin:  strings.TrimSpace(os.Getenv("RELAY_ADMIN")),
+		User:   strings.TrimSpace(os.Getenv("RELAY_USER")),
 		HTTP:   &http.Client{Timeout: 2 * time.Minute}, // room to upload a 5 MB file
 	}
-	if c.Admin == "" {
-		c.Admin = "admin"
+	if c.User == "" {
+		c.User = strings.TrimSpace(os.Getenv("RELAY_ADMIN"))
+	}
+	if c.User == "" {
+		c.User = "admin"
 	}
 	if c.URL == "" || c.APIKey == "" || c.App == "" {
 		return nil, errors.New("relay: set RELAY_URL, RELAY_API_KEY and RELAY_APP")
@@ -170,7 +174,7 @@ func FromEnv() (*Client, error) {
 // retried with the same idempotency key, so nothing is sent twice.
 func (c *Client) Send(ctx context.Context, m Message) (string, error) {
 	if len(m.To) == 0 {
-		m.To = []string{c.Admin}
+		m.To = []string{c.User}
 	}
 	if m.Source == "" {
 		m.Source = c.App
@@ -185,12 +189,12 @@ func (c *Client) Send(ctx context.Context, m Message) (string, error) {
 	return out.ID, err
 }
 
-// Notify sends a text message to the admin.
+// Notify sends a text message to the default user.
 func (c *Client) Notify(ctx context.Context, urgency, title, text string) (string, error) {
 	return c.Send(ctx, Message{Urgency: urgency, Title: title, Blocks: []Block{{Type: "text", Text: text}}})
 }
 
-// Ask asks the admin a question: buttons with options, otherwise a typed reply.
+// Ask asks the default user a question: buttons with options, otherwise a typed reply.
 func (c *Client) Ask(ctx context.Context, question string, options ...string) (string, error) {
 	return c.Send(ctx, Message{Blocks: []Block{{Type: "question", Text: question, Options: options}}})
 }

@@ -1,6 +1,6 @@
 ---
 name: relay-notify
-description: Send notifications to a person through Relay (ali's notification gateway, delivered via Telegram), ask them a question with buttons or a typed reply, and read their answer back. Use this skill whenever an app or agent needs to tell a human something or get a decision from one — job finished or failed, alerts, reports, "let me know when…", "ping me", "tell ali", "send me a telegram", "ask before deploying", approvals, or waiting for human input — even if Relay isn't named. If you don't know who to notify, send to the admin (RELAY_ADMIN, default "admin").
+description: Send notifications to a person through Relay (ali's notification gateway, delivered via Telegram), ask them a question with buttons or a typed reply, and read their answer back. Use this skill whenever an app or agent needs to tell a human something or get a decision from one — job finished or failed, alerts, reports, "let me know when…", "ping me", "tell ali", "send me a telegram", "ask before deploying", approvals, or waiting for human input — even if Relay isn't named. If you don't know who to notify, send to the default user (RELAY_USER, default "admin").
 ---
 
 # Relay: notify a person, ask them, read the answer
@@ -19,7 +19,7 @@ Environment variables, set by whoever runs your app:
 | `RELAY_URL` | yes | Relay's base URL (host), e.g. `https://relay.alialiabadi.ir` |
 | `RELAY_API_KEY` | yes | This app's API key (`rk_...`). The admin creates one per app with `relay clients create <app-name>` |
 | `RELAY_APP` | yes | Your app's name (e.g. `backup-script`), sent as every message's `source`. Relay records it, so the admin can see which app sends what and debug it; the reader sees "via backup-script" |
-| `RELAY_ADMIN` | no, default `admin` | Who to notify when you don't know who else: a recipient's username or alias |
+| `RELAY_USER` | no, default `admin` | Who this app sends to when no recipient is given: a recipient's username or alias. The old name `RELAY_ADMIN` still works when `RELAY_USER` is unset |
 
 If `RELAY_URL`, `RELAY_API_KEY` or `RELAY_APP` is missing, stop and ask the user for it;
 never guess or invent one. **The API key is a secret:** read it from the
@@ -41,7 +41,7 @@ language, or call the HTTP API below directly from any other.
 
 [`scripts/relay.py`](scripts/relay.py) (Python 3.8+, standard library only) is
 the quickest way to use Relay. It reads the variables above, sends to
-`RELAY_ADMIN` when you give no `--to`, adds an idempotency key so its own
+`RELAY_USER` when you give no `--to`, adds an idempotency key so its own
 retries never send twice, and prints JSON.
 
 ```bash
@@ -101,8 +101,8 @@ Other languages: call the HTTP API below directly, and always send
 ## Who to send to
 
 `to` takes 1-10 names. A name is a recipient's username or one of their
-aliases. **If you don't know who to notify, send to `RELAY_ADMIN`** (`admin`
-unless set): the person who runs this system. Two names for the same person
+aliases. **If you don't know who to notify, send to `RELAY_USER`** (`admin`
+unless set): the person this app reports to. Two names for the same person
 are delivered once, so `["admin", "ali"]` is safe.
 
 ```bash
