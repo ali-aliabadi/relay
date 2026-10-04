@@ -70,9 +70,13 @@ fetches it; after that it's final.
 
 [`skills/relay-notify/SKILL.md`](skills/relay-notify/SKILL.md) teaches an agent
 the whole API: who to send to (`admin` when unsure), urgency, blocks, asking
-questions and reading answers, retries and privacy. Copy the folder into the
-other app's `.claude/skills/` and give that app `RELAY_URL` and its own
-`RELAY_API_KEY` (`relay clients create <app-name>`).
+questions and reading answers, retries and privacy. It ships
+`scripts/relay.py`, a standard-library Python tool with `notify`, `ask` and
+`answer` commands. Copy the folder into the other app's `.claude/skills/` and
+give that app `RELAY_URL`, its own `RELAY_API_KEY` (`relay clients create <app-name>`),
+`RELAY_APP` (its name, sent as every message's source) and optionally
+`RELAY_ADMIN` (who to notify by default, `admin` if unset). Go apps get a
+copy-in client in `references/go.md`.
 
 ## How it works
 
