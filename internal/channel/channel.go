@@ -43,12 +43,14 @@ type Preview struct {
 	Parts []Part `json:"parts"`
 }
 
-// Part is one provider call: a text message or a photo.
+// Part is one provider call: a text message, a photo or a document.
 type Part struct {
-	Kind                string   `json:"kind"`              // "text" or "photo"
-	Text                string   `json:"text,omitempty"`    // rendered markup (the caption for photos)
-	Photo               string   `json:"photo,omitempty"`   // https URL, or "inline" for uploaded bytes
-	Buttons             []Button `json:"buttons,omitempty"` // buttons under this part
+	Kind                string   `json:"kind"`               // "text", "photo" or "document"
+	Text                string   `json:"text,omitempty"`     // rendered markup (the caption for photos and documents)
+	Photo               string   `json:"photo,omitempty"`    // https URL, or "inline" for uploaded bytes
+	Document            string   `json:"document,omitempty"` // "inline": uploaded bytes
+	Filename            string   `json:"filename,omitempty"` // document's file name
+	Buttons             []Button `json:"buttons,omitempty"`  // buttons under this part
 	DisableNotification bool     `json:"disable_notification,omitempty"`
 }
 

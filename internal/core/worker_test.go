@@ -117,7 +117,7 @@ func TestWorkerDelivers(t *testing.T) {
 	}
 	sent := h.ch.Sent()
 	if len(sent) != 1 || sent[0].To.Address != "777" || sent[0].Msg.Title != "Private title" ||
-		len(sent[0].Msg.Images) != 1 || !bytes.Equal(sent[0].Msg.Images[0].Bytes, png) {
+		len(sent[0].Msg.Attachments) != 1 || !bytes.Equal(sent[0].Msg.Attachments[0].Bytes, png) {
 		t.Fatalf("sent = %+v", sent)
 	}
 	d := h.deliveries(t, m.ID)[0]

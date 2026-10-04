@@ -23,6 +23,16 @@ id, err = rc.Send(ctx, relay.Message{
 	},
 })
 
+// Attach a file (one per message, up to 5 MB), sent as a Telegram document
+pdf, err := os.ReadFile("invoice.pdf")
+if err != nil {
+	return err
+}
+id, err = rc.Send(ctx, relay.Message{
+	Title:  "September invoice",
+	Blocks: []relay.Block{relay.FileBlock("invoice.pdf", "application/pdf", pdf, "Due Oct 15")},
+})
+
 // Ask with buttons and wait up to an hour
 id, err = rc.Ask(ctx, "Ship v2.3 to production?", "Yes", "No")
 wctx, cancel := context.WithTimeout(ctx, time.Hour)
@@ -54,6 +64,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -76,8 +87,19 @@ type Block struct {
 	Base64      string     `json:"base64,omitempty"`
 	ContentType string     `json:"content_type,omitempty"`
 	Caption     string     `json:"caption,omitempty"`
+	Filename    string     `json:"filename,omitempty"`
 	Options     []string   `json:"options,omitempty"`
 	Webhook     string     `json:"webhook,omitempty"`
+}
+
+// FileBlock attaches data as a file named filename (shown to the reader).
+// contentType may be empty (application/octet-stream). Relay accepts one
+// file per message, 1 byte to 5 MB.
+func FileBlock(filename, contentType string, data []byte, caption string) Block {
+	return Block{
+		Type: "file", Filename: filename, ContentType: contentType, Caption: caption,
+		Base64: base64.StdEncoding.EncodeToString(data),
+	}
 }
 
 // Field is one label/value line of a fields block.
@@ -133,7 +155,7 @@ func FromEnv() (*Client, error) {
 		APIKey: strings.TrimSpace(os.Getenv("RELAY_API_KEY")),
 		App:    strings.TrimSpace(os.Getenv("RELAY_APP")),
 		Admin:  strings.TrimSpace(os.Getenv("RELAY_ADMIN")),
-		HTTP:   &http.Client{Timeout: 15 * time.Second},
+		HTTP:   &http.Client{Timeout: 2 * time.Minute}, // room to upload a 5 MB file
 	}
 	if c.Admin == "" {
 		c.Admin = "admin"

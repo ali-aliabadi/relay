@@ -100,7 +100,7 @@ contacts         recipient_id, channel, address (e.g. telegram chat_id), verifie
 messages         id, client_id, urgency, title NULL, blocks (JSON) NULL, source NULL,
                  idempotency_key NULL, request_id NULL, status, created_at, redacted_at NULL
                  UNIQUE (client_id, idempotency_key)
-attachments      id, message_id, content_type, bytes (BLOB), size  -- inline images
+attachments      id, message_id, content_type, bytes (BLOB), size  -- inline images and files
 deliveries       id, message_id, recipient_id, channel, status
                  (queued|sending|delivered|failed), attempts, next_attempt_at,
                  provider_message_id, last_error, created_at, updated_at
@@ -171,7 +171,7 @@ Errors use one shape: `{"error": {"code": "invalid_request", "message": "..."}}`
 - `GET /v1/messages/{id}` returns metadata only (`id`, `status`, `urgency`, `source`, `request_id`, `created_at`, `redacted`) plus `deliveries` (`id`, `recipient_id`, `channel`, `status`, `attempts`, `next_attempt_at`, `last_error`, `updated_at`). Content is never returned. Another client's message is `404`.
 - `GET /v1/messages?status=&since=<RFC 3339>&limit=1-100&cursor=` returns `{"messages": [...], "next_cursor": "msg_..."}`, newest first; `next_cursor` is present when the page is full.
 - Recipients: `POST` takes `username`, `display_name`, optional `timezone` (IANA, default `UTC`) and `channel_preference` (default `["telegram"]`); `PUT` replaces `display_name`, `timezone` and `channel_preference`. Responses add `aliases`, `linked_channels` (channel names only, never addresses) and `created_at`. A username already taken by an alias is `409`. Recipients are addressed by username in these routes; aliases are for `to`.
-- Inline images are moved out of the blocks into `attachments`; the stored image block keeps an `attachment` index instead of the base64.
+- Inline images and files are moved out of the blocks into `attachments`; the stored block keeps an `attachment` index instead of the base64 (a file's name and caption stay in the encrypted blocks).
 
 ### Message format
 
@@ -207,6 +207,7 @@ is the same as one `text` block.
 | `fields` | `items[{label, value}]` | `<b>Label:</b> value` lines |
 | `table` | `columns`, `rows` | Monospaced `<pre>` table, cells padded and truncated to fit |
 | `image` | `url` **or** `base64` + `content_type`, optional `caption` | `sendPhoto`; title + text become the caption when short enough, otherwise a follow-up message |
+| `file` | `filename`, `base64`, optional `content_type` (default `application/octet-stream`), optional `caption` | `sendDocument` upload; title + text become the caption when short enough, otherwise a follow-up message |
 | `code` | `text` | `<pre>` block |
 | `link` | `text`, `url` (https only) | Inline keyboard button |
 | `question` | `text`, optional `options` (1-10, each up to 64 chars, unique), optional `webhook` (https) | `❓ <b>text</b>` at the end (never truncated away); options become answer buttons, otherwise "Reply to this message to answer." |
@@ -214,7 +215,11 @@ is the same as one `text` block.
 Rules: `title` is shown bold at the top; `source` as a small footer; `critical`
 adds 🚨 to the title. At most one `question` block. Limits: 20 blocks, 50 table rows × 8 columns, 1 image in the
 MVP (inline `base64` up to 5 MB, PNG/JPEG only; use `base64` for images on private
-hosts, since Telegram fetches `url` images itself). A channel that can't show a block
+hosts, since Telegram fetches `url` images itself), 1 file (inline `base64` only, up to
+5 MB, any type; `filename` up to 128 characters with no slashes or control characters).
+An image and a file together must still fit the request body limit. With both, or
+with text too long for a caption, the photo and the document each go first with their
+own caption and the text follows. A channel that can't show a block
 falls back to its plain-text form (e.g. a table as aligned text for SMS).
 `urgency` defaults to `normal`. Unknown recipients or invalid blocks are a `422`.
 
@@ -290,7 +295,7 @@ loses nothing.
 | `RELAY_RETENTION_DAYS` | `30` | Message content is purged after this many days; metadata is kept |
 | `RELAY_METRICS_ADDR` | `127.0.0.1:9090` | Internal listener for `/metrics` (and `/debug/pprof` when `RELAY_PPROF=true`) |
 | `RELAY_PPROF` | `false` | Serve `/debug/pprof` on the metrics listener |
-| `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image) |
+| `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image or file) |
 | `RELAY_ADMIN_RECIPIENT` | *(empty)* | Username or alias allowed to send `/invite` to the bot from their linked Telegram chat; empty turns it off |
 | `RELAY_TRUST_FORWARDED_FOR` | `false` | Take the client IP from the last `X-Forwarded-For` entry (set by compose, since Relay is only reachable through nginx on the same host) |
 
@@ -304,7 +309,7 @@ payload (markup injection, oversized or fake images), and a compromised dependen
 - **Retention:** a daily job in the worker nulls title and blocks and deletes attachments of messages older than `RELAY_RETENTION_DAYS` and marks them `redacted`; message and delivery metadata are deleted after 180 days; expired invites and invite links are deleted.
 - **Transport:** HTTPS only: Cloudflare terminates public TLS and reaches nginx over TLS (SSL mode Full). Relay listens on the host's loopback only.
 - **Auth:** per-client API keys (`rk_` + 32 random bytes), SHA-256 hashed, constant-time compare, revocable. Failed auth is rate-limited per IP: 10 failures in 10 minutes and that IP gets `429` with `Retry-After` until the window ends. Counts live in memory only and IPs are never logged.
-- **Input handling:** body size limit, strict JSON decoding, block limits, every value HTML-escaped by the Telegram layout, `link`/`image`/`webhook` URLs restricted to `https`, inline images type-checked by magic bytes. Relay fetches no URLs itself (Telegram fetches image URLs) except question webhooks, which carry no content and may only reach public addresses.
+- **Input handling:** body size limit, strict JSON decoding, block limits, every value HTML-escaped by the Telegram layout, `link`/`image`/`webhook` URLs restricted to `https`, inline images type-checked by magic bytes, file names restricted to plain names and file content types to well-formed media types. Relay fetches no URLs itself (Telegram fetches image URLs) except question webhooks, which carry no content and may only reach public addresses.
 - **Answers:** accepted only from the chat a question was delivered to, encrypted at rest, purged with message content, returned only to the client that asked.
 - **Logging:** content and contact addresses are never logged (see Observability).
 - **Container:** distroless/static non-root image, read-only root filesystem, only `/data` writable.

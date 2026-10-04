@@ -79,9 +79,10 @@ func truncate(raw string, limit int) string {
 func Render(msg message.Message) []channel.Part {
 	header := renderHeader(msg)
 	footer := renderFooter(msg)
+	silent := msg.Urgency == message.UrgencyLow
 	var buttons []channel.Button
-	var photo *message.Block
-	var blocks []func(int) frag
+	var media []channel.Part
+	var blocks, rest []func(int) frag // rest leaves out media captions
 	for i := range msg.Blocks {
 		b := msg.Blocks[i]
 		switch b.Type {
@@ -92,50 +93,51 @@ func Render(msg message.Message) []channel.Part {
 			for j, o := range b.Options {
 				buttons = append(buttons, channel.Button{Text: o, Data: AnswerData(msg.DeliveryID, j)})
 			}
-		case message.BlockImage:
-			photo = &msg.Blocks[i]
+		case message.BlockImage, message.BlockFile:
+			media = append(media, mediaPart(b, silent))
 			if b.Caption != "" {
 				blocks = append(blocks, inline("i", b.Caption))
 			}
 		default:
 			blocks = append(blocks, blockRenderer(b))
+			rest = append(rest, blockRenderer(b))
 		}
 	}
 
-	silent := msg.Urgency == message.UrgencyLow
-	if photo == nil {
+	if len(media) == 0 {
 		body := fit(header, blocks, footer, maxTextLen)
 		return []channel.Part{{Kind: "text", Text: body.html, Buttons: buttons, DisableNotification: silent}}
 	}
-
-	src := photoSource(*photo)
-	if full := fit(header, blocks, footer, maxTextLen); full.visible <= maxCaptionLen {
-		return []channel.Part{{Kind: "photo", Photo: src, Text: full.html, Buttons: buttons, DisableNotification: silent}}
+	if full := fit(header, blocks, footer, maxTextLen); len(media) == 1 && full.visible <= maxCaptionLen {
+		media[0].Text, media[0].Buttons = full.html, buttons
+		return media
 	}
-	// Too long for a caption: the photo goes first with its own caption,
-	// then the full text (without the image caption) as a message.
-	var caption frag
-	if photo.Caption != "" {
-		caption = text(truncate(photo.Caption, maxCaptionLen))
-	}
-	var rest []func(int) frag
-	for i, b := range msg.Blocks {
-		if b.Type != message.BlockLink && b.Type != message.BlockImage && b.Type != message.BlockQuestion {
-			rest = append(rest, blockRenderer(msg.Blocks[i]))
-		}
-	}
+	// Too long for one caption, or several media: each photo or file goes
+	// first with its own caption, then the text (without those captions).
 	body := fit(header, rest, footer, maxTextLen)
-	return []channel.Part{
-		{Kind: "photo", Photo: src, Text: caption.html, DisableNotification: silent},
-		{Kind: "text", Text: body.html, Buttons: buttons, DisableNotification: silent},
+	if body.empty() {
+		media[len(media)-1].Buttons = buttons
+		return media
 	}
+	return append(media, channel.Part{Kind: "text", Text: body.html, Buttons: buttons, DisableNotification: silent})
 }
 
-func photoSource(b message.Block) string {
-	if b.URL != "" {
-		return b.URL
+// mediaPart is a photo or document part captioned with the block's own caption.
+func mediaPart(b message.Block, silent bool) channel.Part {
+	var caption string
+	if b.Caption != "" {
+		caption = text(truncate(b.Caption, maxCaptionLen)).html
 	}
-	return "inline"
+	p := channel.Part{Kind: "photo", Text: caption, DisableNotification: silent}
+	switch {
+	case b.Type == message.BlockFile:
+		p.Kind, p.Document, p.Filename = "document", "inline", b.Filename
+	case b.URL != "":
+		p.Photo = b.URL
+	default:
+		p.Photo = "inline"
+	}
+	return p
 }
 
 func renderHeader(msg message.Message) frag {

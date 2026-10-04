@@ -1,0 +1,12 @@
+[
+  {
+    "kind": "document",
+    "text": "Full log",
+    "document": "inline",
+    "filename": "build.log"
+  },
+  {
+    "kind": "text",
+    "text": "<b>Logs</b>\n\n<pre>error line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\nerror line\n</pre>"
+  }
+]

@@ -42,7 +42,7 @@ func (m Message) LogValue() slog.Value {
 	)
 }
 
-// Attachment is an inline image. Bytes are private.
+// Attachment is an inline image or file. Bytes are private.
 type Attachment struct {
 	ID          string
 	MessageID   string
@@ -51,7 +51,7 @@ type Attachment struct {
 	Size        int64
 }
 
-// LogValue keeps the image bytes out of logs.
+// LogValue keeps the bytes out of logs.
 func (a Attachment) LogValue() slog.Value {
 	return slog.GroupValue(slog.String("attachment_id", a.ID), slog.Int64("size", a.Size))
 }

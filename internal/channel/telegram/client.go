@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"time"
@@ -67,8 +68,17 @@ func (c *Client) call(ctx context.Context, method string, body, out any) error {
 	return c.do(ctx, method, "application/json", bytes.NewReader(payload), out)
 }
 
+// upload is one file in a multipart request.
+type upload struct {
+	field, name, contentType string
+	data                     []byte
+}
+
+// quoteEscaper keeps a file name inside its quoted Content-Disposition value.
+var quoteEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\r", "", "\n", "")
+
 // callMultipart posts form fields plus one file upload.
-func (c *Client) callMultipart(ctx context.Context, method string, fields map[string]string, fileField string, file []byte, contentType string, out any) error {
+func (c *Client) callMultipart(ctx context.Context, method string, fields map[string]string, file upload, out any) error {
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	for k, v := range fields {
@@ -76,15 +86,15 @@ func (c *Client) callMultipart(ctx context.Context, method string, fields map[st
 			return fmt.Errorf("encoding %s: %w", method, err)
 		}
 	}
-	ext := ".png"
-	if contentType == "image/jpeg" {
-		ext = ".jpg"
-	}
-	fw, err := mw.CreateFormFile(fileField, "image"+ext)
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
+		quoteEscaper.Replace(file.field), quoteEscaper.Replace(file.name)))
+	h.Set("Content-Type", file.contentType)
+	fw, err := mw.CreatePart(h)
 	if err != nil {
 		return fmt.Errorf("encoding %s: %w", method, err)
 	}
-	if _, err := fw.Write(file); err != nil {
+	if _, err := fw.Write(file.data); err != nil {
 		return fmt.Errorf("encoding %s: %w", method, err)
 	}
 	if err := mw.Close(); err != nil {

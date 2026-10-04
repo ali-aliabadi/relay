@@ -20,7 +20,7 @@ type Call struct {
 	Params map[string]any    `json:"params,omitempty"` // JSON requests
 	Form   map[string]string `json:"form,omitempty"`   // multipart requests
 	File   int               `json:"file_bytes,omitempty"`
-	// MessageID is what a successful sendMessage/sendPhoto returned.
+	// MessageID is what a successful sendMessage/sendPhoto/sendDocument returned.
 	MessageID int64 `json:"message_id,omitempty"`
 }
 
@@ -45,7 +45,7 @@ type Server struct {
 // New returns a fake accepting token.
 func New(token string) *Server { return &Server{Token: token} }
 
-// FailNext makes the next sendMessage/sendPhoto calls fail, in order.
+// FailNext makes the next sendMessage/sendPhoto/sendDocument calls fail, in order.
 func (s *Server) FailNext(f ...Failure) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -149,7 +149,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(20 * time.Millisecond) // a short stand-in for long polling
 		}
 		reply(w, http.StatusOK, Failure{}, ups)
-	case "sendMessage", "sendPhoto":
+	case "sendMessage", "sendPhoto", "sendDocument":
 		s.send(w, idx)
 	case "answerCallbackQuery", "editMessageReplyMarkup":
 		reply(w, http.StatusOK, Failure{}, true)
@@ -229,9 +229,11 @@ func decodeCall(r *http.Request, token, method string) Call {
 			for k, v := range r.MultipartForm.Value {
 				c.Form[k] = v[0]
 			}
-			if f, _, err := r.FormFile("photo"); err == nil {
-				b, _ := io.ReadAll(f)
-				c.File = len(b)
+			for _, field := range []string{"photo", "document"} {
+				if f, _, err := r.FormFile(field); err == nil {
+					b, _ := io.ReadAll(f)
+					c.File = len(b)
+				}
 			}
 		}
 		return c

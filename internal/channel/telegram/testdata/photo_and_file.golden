@@ -1,0 +1,22 @@
+[
+  {
+    "kind": "photo",
+    "text": "Chart",
+    "photo": "https://example.com/chart.png"
+  },
+  {
+    "kind": "document",
+    "document": "inline",
+    "filename": "data.csv"
+  },
+  {
+    "kind": "text",
+    "text": "❓ <b>Approve?</b>",
+    "buttons": [
+      {
+        "text": "Yes",
+        "data": "a:dlv_TEST:0"
+      }
+    ]
+  }
+]

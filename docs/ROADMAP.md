@@ -92,6 +92,10 @@ should be one small PR unless noted. Design details are in
 - [x] Aliases: `relay recipients alias ali admin`; any alias works in `to`, one delivery per person
 - [x] `/invite <user> [name]` in the admin's Telegram chat: one-time `t.me` Start link, no terminal (`RELAY_ADMIN_RECIPIENT`)
 
+## Phase 9: files
+
+- [x] `file` block (inline base64, any type, up to 5 MB, one per message) sent as a Telegram document; relay-notify skill and clients updated
+
 ## Later
 
 Roughly in priority order; promote items into a phase when starting them.

@@ -10,6 +10,10 @@ const (
 	MaxTableColumns   = 8
 	MaxFields         = 25
 	MaxImageBytes     = 5 << 20
+	MaxFiles          = 1
+	MaxFileBytes      = 5 << 20 // with base64, fits RELAY_MAX_BODY_BYTES and nginx's 8 MB cap
+	MaxFilenameLen    = 128
+	MaxContentTypeLen = 128
 	MaxTitleLen       = 256
 	MaxSourceLen      = 64
 	MaxTextLen        = 4000

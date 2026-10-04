@@ -21,6 +21,7 @@ const (
 	BlockCode     = "code"
 	BlockLink     = "link"
 	BlockQuestion = "question"
+	BlockFile     = "file"
 )
 
 // Request is the body of POST /v1/messages and POST /v1/preview.
@@ -52,14 +53,15 @@ type Block struct {
 	Columns     []string   `json:"columns,omitempty"`      // table
 	Rows        [][]string `json:"rows,omitempty"`         // table
 	URL         string     `json:"url,omitempty"`          // image, link
-	Base64      string     `json:"base64,omitempty"`       // image (inline)
-	ContentType string     `json:"content_type,omitempty"` // image (inline)
-	Caption     string     `json:"caption,omitempty"`      // image
+	Base64      string     `json:"base64,omitempty"`       // image (inline), file
+	ContentType string     `json:"content_type,omitempty"` // image (inline), file
+	Caption     string     `json:"caption,omitempty"`      // image, file
+	Filename    string     `json:"filename,omitempty"`     // file
 	Options     []string   `json:"options,omitempty"`      // question: buttons; none means a typed reply
 	Webhook     string     `json:"webhook,omitempty"`      // question: called when an answer arrives
 
 	// Attachment is set by Relay, never by callers: the index into the
-	// message's stored attachments that holds this inline image's bytes.
+	// message's stored attachments that holds this inline image's or file's bytes.
 	Attachment *int `json:"attachment,omitempty"`
 }
 
@@ -70,13 +72,13 @@ type Field struct {
 }
 
 // Message is what a channel layout renders: a validated request's content,
-// with inline images resolved to bytes.
+// with inline images and files resolved to bytes.
 type Message struct {
-	Urgency string
-	Title   string
-	Source  string
-	Blocks  []Block
-	Images  []Image // inline image bytes, indexed by Block.Attachment
+	Urgency     string
+	Title       string
+	Source      string
+	Blocks      []Block
+	Attachments []Attachment // inline image and file bytes, indexed by Block.Attachment
 
 	// DeliveryID is set by the worker so a layout can tie answers to it.
 	DeliveryID string
@@ -92,8 +94,8 @@ func Question(blocks []Block) (Block, bool) {
 	return Block{}, false
 }
 
-// Image is an inline image's bytes.
-type Image struct {
+// Attachment is an inline image's or file's bytes.
+type Attachment struct {
 	ContentType string
 	Bytes       []byte
 }
