@@ -19,7 +19,7 @@ Environment variables, set by whoever runs your app:
 | `RELAY_URL` | yes | Relay's base URL (host), e.g. `https://relay.alialiabadi.ir` |
 | `RELAY_API_KEY` | yes | This app's API key (`rk_...`). The admin creates one per app with `relay clients create <app-name>` |
 | `RELAY_APP` | yes | Your app's name (e.g. `backup-script`), sent as every message's `source`. Relay records it, so the admin can see which app sends what and debug it; the reader sees "via backup-script" |
-| `RELAY_USER` | no, default `admin` | Who this app sends to when no recipient is given: a recipient's username or alias. The old name `RELAY_ADMIN` still works when `RELAY_USER` is unset |
+| `RELAY_USER` | no, default `admin` | Who this app sends to when no recipient is given: a recipient's username or alias |
 
 If `RELAY_URL`, `RELAY_API_KEY` or `RELAY_APP` is missing, stop and ask the user for it;
 never guess or invent one. **The API key is a secret:** read it from the

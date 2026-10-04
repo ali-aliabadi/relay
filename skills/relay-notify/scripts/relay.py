@@ -19,8 +19,7 @@ Configuration comes from the environment (see SKILL.md):
     RELAY_URL      Relay's base URL, e.g. https://relay.alialiabadi.ir (required)
     RELAY_API_KEY  this app's API key (required; never print or log it)
     RELAY_APP      this app's name, sent as every message's source (required)
-    RELAY_USER     who to notify when no --to is given (default: admin;
-                   the old name RELAY_ADMIN is still read as a fallback)
+    RELAY_USER     who to notify when no --to is given (default: admin)
 
 Exit codes: 0 ok, 1 Relay or network error, 2 bad usage or config,
 3 nobody answered before --wait ran out.
@@ -61,15 +60,8 @@ def _config():
 
 
 def user():
-    """The default recipient: $RELAY_USER, else the old $RELAY_ADMIN, else "admin"."""
-    for name in ("RELAY_USER", "RELAY_ADMIN"):
-        value = os.environ.get(name, "").strip()
-        if value:
-            return value
-    return "admin"
-
-
-admin = user  # old name, kept for apps that already import it
+    """The default recipient: $RELAY_USER, or "admin"."""
+    return os.environ.get("RELAY_USER", "").strip() or "admin"
 
 
 def _request(method, path, body=None, retries=3):

@@ -148,8 +148,7 @@ type Client struct {
 	HTTP                   *http.Client
 }
 
-// FromEnv reads RELAY_URL, RELAY_API_KEY, RELAY_APP and RELAY_USER (default
-// "admin"; the old name RELAY_ADMIN is still read when RELAY_USER is unset).
+// FromEnv reads RELAY_URL, RELAY_API_KEY, RELAY_APP and RELAY_USER (default "admin").
 func FromEnv() (*Client, error) {
 	c := &Client{
 		URL:    strings.TrimRight(strings.TrimSpace(os.Getenv("RELAY_URL")), "/"),
@@ -157,9 +156,6 @@ func FromEnv() (*Client, error) {
 		App:    strings.TrimSpace(os.Getenv("RELAY_APP")),
 		User:   strings.TrimSpace(os.Getenv("RELAY_USER")),
 		HTTP:   &http.Client{Timeout: 2 * time.Minute}, // room to upload a 5 MB file
-	}
-	if c.User == "" {
-		c.User = strings.TrimSpace(os.Getenv("RELAY_ADMIN"))
 	}
 	if c.User == "" {
 		c.User = "admin"
