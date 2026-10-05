@@ -31,7 +31,7 @@ type Config struct {
 	Pprof              bool
 	MaxBodyBytes       int64
 	TrustForwardedFor  bool
-	// AdminRecipient (a username or alias) may send /invite to the bot from
+	// AdminRecipient (a username or alias) may send /invite and the key commands to the bot from
 	// their linked Telegram chat. Empty turns bot admin commands off.
 	AdminRecipient string
 }

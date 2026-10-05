@@ -10,12 +10,12 @@ import (
 
 var inviteLinkRe = regexp.MustCompile(`https://t\.me/relay_test_bot\?start=([A-Za-z0-9_-]+)`)
 
-// withEnv returns c with one more environment variable set.
-func withEnv(c cli, key, value string) cli {
+// withAdmin returns c with RELAY_ADMIN_RECIPIENT set to admin.
+func withAdmin(c cli, admin string) cli {
 	prev := c.env
 	c.env = func(k string) (string, bool) {
-		if k == key {
-			return value, true
+		if k == "RELAY_ADMIN_RECIPIENT" {
+			return admin, true
 		}
 		return prev(k)
 	}
@@ -45,7 +45,7 @@ func awaitTo(t *testing.T, bot *telegramtest.Server, chat float64, want string) 
 // terminal involved after the admin's own first link.
 func TestBotInviteLink(t *testing.T) {
 	c, bot := newTelegramCLI(t)
-	c = withEnv(c, "RELAY_ADMIN_RECIPIENT", "admin")
+	c = withAdmin(c, "admin")
 	c.run("recipients", "add", "ali", "--name", "Ali", "--timezone", "Europe/Berlin")
 	c.run("recipients", "alias", "ali", "admin")
 	_, logs := startServe(t, c)
@@ -100,7 +100,7 @@ func TestBotInviteLink(t *testing.T) {
 
 func TestBotInviteProblems(t *testing.T) {
 	c, bot := newTelegramCLI(t)
-	admin := withEnv(c, "RELAY_ADMIN_RECIPIENT", "ali")
+	admin := withAdmin(c, "ali")
 	admin.run("recipients", "add", "ali", "--name", "Ali")
 	admin.run("recipients", "alias", "ali", "boss")
 	startServe(t, admin)

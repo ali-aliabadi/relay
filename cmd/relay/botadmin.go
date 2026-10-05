@@ -58,3 +58,15 @@ func botClaimLink(admin string, recipients *core.Recipients, logger *slog.Logger
 		return telegram.Claimed{OK: true, Name: rcp.DisplayName, AdminChat: adminChat}, nil
 	}
 }
+
+// botAdminChat finds the admin's linked chat for the bot's command menu.
+// Returns nil (no admin menu) when no admin is configured.
+func botAdminChat(admin string, recipients *core.Recipients) func(ctx context.Context) (string, error) {
+	if admin == "" {
+		return nil
+	}
+	return func(ctx context.Context) (string, error) {
+		_, chat, _, err := recipients.TelegramAdmin(ctx, admin)
+		return chat, err
+	}
+}

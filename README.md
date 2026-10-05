@@ -73,7 +73,7 @@ the whole API: who to send to (`admin` when unsure), urgency, blocks, asking
 questions and reading answers, retries and privacy. It ships
 `scripts/relay.py`, a standard-library Python tool with `notify`, `ask` and
 `answer` commands. Copy the folder into the other app's `.claude/skills/` and
-give that app `RELAY_URL`, its own `RELAY_API_KEY` (`relay clients create <app-name>`),
+give that app `RELAY_URL`, its own `RELAY_API_KEY` (send the bot `/newkey <app-name>`, or `relay clients create <app-name>`),
 `RELAY_APP` (its name, sent as every message's source) and optionally
 `RELAY_USER` (who it sends to by default, `admin` if unset). Go apps get a
 copy-in client in `references/go.md`.
@@ -132,6 +132,13 @@ To add a person without the terminal, set `RELAY_ADMIN_RECIPIENT=admin` in
 `/opt/relay/.env` once, then send the bot `/invite sara Sara` from your own
 linked chat. It replies with a one-time link (24 hours) to forward; when they
 tap it and press Start, they're linked and the bot tells you.
+
+API keys work the same way from that chat: `/newkey my-app` replies with a key
+that deletes itself after a minute (copy it straight away), `/keys` lists app
+names and `/revoke my-app` turns a key off. The key passes through Telegram's
+servers, which aren't end-to-end encrypted; use the CLI above for a key that
+should never leave the VPS. Send `/help` to see your commands; the admin ones
+show up in the "/" menu of your chat only.
 
 One-time setup is listed under "Phase 0" in [docs/ROADMAP.md](docs/ROADMAP.md).
 
