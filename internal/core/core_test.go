@@ -73,6 +73,22 @@ func TestClientKeyLifecycle(t *testing.T) {
 	if err != nil || len(list) != 2 {
 		t.Errorf("List = %d, %v", len(list), err)
 	}
+
+	// An active name can't be taken again; a revoked one gets a new key and
+	// keeps its ID, and its old key stays dead.
+	if _, _, err := svc.Create(ctx, "other"); !errors.Is(err, store.ErrConflict) {
+		t.Errorf("Create(active name) err = %v, want ErrConflict", err)
+	}
+	again, key3, err := svc.Create(ctx, "backup-script")
+	if err != nil || again.ID != c.ID || again.RevokedAt != nil || key3 == key {
+		t.Fatalf("Create(revoked name) = %+v, %v", again, err)
+	}
+	if got, err := svc.Authenticate(ctx, key3); err != nil || got.ID != c.ID {
+		t.Errorf("reissued key: %+v, %v", got, err)
+	}
+	if _, err := svc.Authenticate(ctx, key); !errors.Is(err, ErrUnauthorized) {
+		t.Errorf("old key after reissue err = %v", err)
+	}
 }
 
 func TestValidateName(t *testing.T) {

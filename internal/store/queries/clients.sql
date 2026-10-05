@@ -9,3 +9,6 @@ SELECT * FROM clients ORDER BY created_at, id;
 
 -- name: RevokeClient :execrows
 UPDATE clients SET revoked_at = ? WHERE name = ? AND revoked_at IS NULL;
+
+-- name: ReissueClient :one
+UPDATE clients SET api_key_hash = ?, revoked_at = NULL WHERE name = ? AND revoked_at IS NOT NULL RETURNING *;

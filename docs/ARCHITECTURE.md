@@ -270,6 +270,36 @@ confirms to her and tells the admin "Sara opened your invite".
   link to the right chat. Claiming also drops a pending `@username` invite for
   that person.
 
+### API keys from Telegram
+
+The same admin chat manages app keys, so making one needs no SSH:
+
+```
+/newkey photo-sync     new key for an app (or a fresh one for a revoked app)
+/keys                  app names, working and revoked; never keys
+/revoke photo-sync     the key stops working at once
+```
+
+`/newkey` replies with a plain note (set `RELAY_API_KEY`, `RELAY_APP=<app>`)
+and then the key alone in an HTML `<code>` message (tap to copy, no link
+preview). The poller deletes that message after one minute, or at once when
+Relay stops. A name with a working key is refused; replacing a key is
+`/revoke` then `/newkey`, which keeps the client's ID and messages.
+
+- Same gate as `/invite`: only the admin's linked private chat, everyone else
+  gets the usual hint, off without `RELAY_ADMIN_RECIPIENT`. That makes the
+  admin's Telegram account a credential for creating keys; it should have a
+  Telegram 2-step verification password.
+- Bot chats are not end-to-end encrypted: the key passes through and is stored
+  on Telegram's servers until the delete. The delete removes it from every
+  device in the chat; it can't undo a copy already made (notification
+  previews, screenshots, clipboard managers, whatever Telegram retains after a
+  delete). The key
+  only lets an app send to Relay's recipients and read its own messages'
+  answers, and `/revoke` ends it, so this trade fits; the CLI
+  (`relay clients create`) stays for keys that never touch Telegram.
+- Relay logs `api key created` / `api key revoked` with the client ID only.
+
 ### Answers
 
 `serve` long-polls `getUpdates` (no webhook, so nothing changes in nginx or
@@ -296,7 +326,7 @@ loses nothing.
 | `RELAY_METRICS_ADDR` | `127.0.0.1:9090` | Internal listener for `/metrics` (and `/debug/pprof` when `RELAY_PPROF=true`) |
 | `RELAY_PPROF` | `false` | Serve `/debug/pprof` on the metrics listener |
 | `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image or file) |
-| `RELAY_ADMIN_RECIPIENT` | *(empty)* | Username or alias allowed to send `/invite` to the bot from their linked Telegram chat; empty turns it off |
+| `RELAY_ADMIN_RECIPIENT` | *(empty)* | Username or alias allowed to send `/invite`, `/newkey`, `/keys` and `/revoke` to the bot from their linked Telegram chat; empty turns them off |
 | `RELAY_TRUST_FORWARDED_FOR` | `false` | Take the client IP from the last `X-Forwarded-For` entry (set by compose, since Relay is only reachable through nginx on the same host) |
 
 ## Privacy and security

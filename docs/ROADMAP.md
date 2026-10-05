@@ -91,6 +91,7 @@ should be one small PR unless noted. Design details are in
 - [x] `relay recipients link <user> @telegram_username`: they tap Start, the bot links them (codes stay as the fallback)
 - [x] Aliases: `relay recipients alias ali admin`; any alias works in `to`, one delivery per person
 - [x] `/invite <user> [name]` in the admin's Telegram chat: one-time `t.me` Start link, no terminal (`RELAY_ADMIN_RECIPIENT`)
+- [x] `/newkey <app>`, `/keys`, `/revoke <app>` in the admin's Telegram chat; the key message deletes itself after a minute
 
 ## Phase 9: files
 

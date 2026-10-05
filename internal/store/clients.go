@@ -82,3 +82,14 @@ func clientFromRow(r db.Client) (Client, error) {
 	}
 	return Client{ID: r.ID, Name: r.Name, APIKeyHash: r.ApiKeyHash, CreatedAt: created, RevokedAt: revoked}, nil
 }
+
+// ReissueClient gives a revoked client a new key hash and makes it active
+// again, keeping its ID (and so its messages). ErrNotFound when no revoked
+// client has this name.
+func (s *Store) ReissueClient(ctx context.Context, name string, keyHash []byte) (Client, error) {
+	row, err := s.q.ReissueClient(ctx, db.ReissueClientParams{ApiKeyHash: keyHash, Name: name})
+	if err != nil {
+		return Client{}, fmt.Errorf("reissuing client: %w", mapErr(err))
+	}
+	return clientFromRow(row)
+}

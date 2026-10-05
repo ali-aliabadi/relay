@@ -87,6 +87,7 @@ func newPoller(cfg config.Config, logger *slog.Logger, st *store.Store, webhooks
 		},
 		Invite:    botInvite(cfg.AdminRecipient, recipients, logger),
 		ClaimLink: botClaimLink(cfg.AdminRecipient, recipients, logger),
+		Keys:      botKeys(cfg.AdminRecipient, recipients, core.NewClients(st), logger),
 		Logger:    logger,
 	}
 }

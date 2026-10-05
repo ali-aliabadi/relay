@@ -30,7 +30,9 @@ type Clients struct {
 func NewClients(s *store.Store) *Clients { return &Clients{store: s} }
 
 // Create registers a client and returns its API key. The key is not stored
-// (only its SHA-256 hash), so this is the only time it can be shown.
+// (only its SHA-256 hash), so this is the only time it can be shown. A
+// revoked client of the same name gets the new key and is active again; an
+// active one is store.ErrConflict.
 func (c *Clients) Create(ctx context.Context, name string) (store.Client, string, error) {
 	if err := validateName(name); err != nil {
 		return store.Client{}, "", err
@@ -41,6 +43,12 @@ func (c *Clients) Create(ctx context.Context, name string) (store.Client, string
 	}
 	key := apiKeyPrefix + base64.RawURLEncoding.EncodeToString(raw[:])
 	client, err := c.store.CreateClient(ctx, name, hashKey(key))
+	if errors.Is(err, store.ErrConflict) {
+		var rerr error
+		if client, rerr = c.store.ReissueClient(ctx, name, hashKey(key)); !errors.Is(rerr, store.ErrNotFound) {
+			err = rerr // reissued (nil) or failed; ErrNotFound means the name is active
+		}
+	}
 	if err != nil {
 		return store.Client{}, "", err
 	}

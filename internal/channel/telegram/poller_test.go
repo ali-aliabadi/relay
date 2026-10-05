@@ -34,6 +34,8 @@ type pollerRig struct {
 	invites  []string    // "chat args" per /invite
 	claimed  Claimed     // what ClaimLink returns
 	links    []string    // "token chat" per opened invite link
+	keys     KeyReply    // what Keys returns
+	keyCmds  []string    // "chat cmd args" per key command
 }
 
 type syncBuf struct {
@@ -95,6 +97,13 @@ func startPoller(t *testing.T, wrap func(http.Handler) http.Handler) *pollerRig 
 			r.links = append(r.links, token+" "+chatID)
 			return r.claimed, r.err
 		},
+		Keys: func(_ context.Context, chatID, cmd, args string) (KeyReply, error) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.keyCmds = append(r.keyCmds, chatID+" "+cmd+" "+args)
+			return r.keys, r.err
+		},
+		KeyTTL:  50 * time.Millisecond,
 		Logger:  obs.NewLogger(r.logs, slog.LevelInfo),
 		Backoff: 10 * time.Millisecond,
 	}

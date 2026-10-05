@@ -81,6 +81,28 @@ func (q *Queries) ListClients(ctx context.Context) ([]Client, error) {
 	return items, nil
 }
 
+const reissueClient = `-- name: ReissueClient :one
+UPDATE clients SET api_key_hash = ?, revoked_at = NULL WHERE name = ? AND revoked_at IS NOT NULL RETURNING id, name, api_key_hash, created_at, revoked_at
+`
+
+type ReissueClientParams struct {
+	ApiKeyHash []byte
+	Name       string
+}
+
+func (q *Queries) ReissueClient(ctx context.Context, arg ReissueClientParams) (Client, error) {
+	row := q.db.QueryRowContext(ctx, reissueClient, arg.ApiKeyHash, arg.Name)
+	var i Client
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ApiKeyHash,
+		&i.CreatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const revokeClient = `-- name: RevokeClient :execrows
 UPDATE clients SET revoked_at = ? WHERE name = ? AND revoked_at IS NULL
 `

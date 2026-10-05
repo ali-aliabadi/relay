@@ -105,6 +105,24 @@ func TestClients(t *testing.T) {
 	if err != nil || len(all) != 1 || all[0].RevokedAt == nil {
 		t.Errorf("ListClients = %+v, %v", all, err)
 	}
+
+	// A revoked client can get a new key; an active one can't be reissued.
+	newHash := bytes.Repeat([]byte{3}, 32)
+	if re, err := s.ReissueClient(ctx, "backup-script", newHash); err != nil || re.ID != c.ID || re.RevokedAt != nil {
+		t.Fatalf("ReissueClient = %+v, %v", re, err)
+	}
+	if got, err := s.ClientByKeyHash(ctx, newHash); err != nil || got.ID != c.ID || got.RevokedAt != nil {
+		t.Errorf("reissued client = %+v, %v", got, err)
+	}
+	if _, err := s.ClientByKeyHash(ctx, hash); !errors.Is(err, ErrNotFound) {
+		t.Errorf("old key works after reissue: %v", err)
+	}
+	if _, err := s.ReissueClient(ctx, "backup-script", bytes.Repeat([]byte{4}, 32)); !errors.Is(err, ErrNotFound) {
+		t.Errorf("reissue of an active client err = %v, want ErrNotFound", err)
+	}
+	if _, err := s.ReissueClient(ctx, "nobody", bytes.Repeat([]byte{5}, 32)); !errors.Is(err, ErrNotFound) {
+		t.Errorf("reissue of an unknown client err = %v, want ErrNotFound", err)
+	}
 }
 
 func TestRecipientsAndContacts(t *testing.T) {
