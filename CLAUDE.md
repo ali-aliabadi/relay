@@ -8,7 +8,7 @@ Relay is ali's personal notification gateway: a small Go HTTP service where apps
 `POST /v1/messages` with recipients, urgency and content blocks (text, fields, table,
 image, code, link, question), and Relay formats them with the channel's one built-in layout, routes it to a channel (Telegram in the MVP), retries and logs it.
 Answers to a `question` come back through the bot and apps fetch them from `GET /v1/messages/{id}/answers`.
-Users are ali and ali's wife, registered by hand. Aliases (e.g. `admin` → ali) give a person more names for `to`.
+Users are ali and a family member, registered by hand. Aliases (e.g. `admin` → ali) give a person more names for `to`.
 
 **Relay handles private data.** Message content, images and contact details
 (Telegram chat IDs, later phone numbers) are personal. Privacy rules below are not optional.
@@ -128,5 +128,5 @@ Three levels, all required for new behaviour:
 
 ## Local vs cloud sessions
 
-- **Local** (ali's machine): may have SSH access as `german-vps`. Still, never deploy or change the VPS by hand unless ali asks; deployment goes through GitHub Actions.
+- **Local** (ali's machine): may have SSH access to the VPS. Still, never deploy or change the VPS by hand unless ali asks; deployment goes through GitHub Actions.
 - **Cloud** sessions: no access to the VPS or its secrets. Go may be older than `go.mod` requires; if `go` complains, say so instead of downgrading `go.mod`. Docker may be unavailable (see Testing).

@@ -77,7 +77,7 @@ should be one small PR unless noted. Design details are in
 - [x] `.github/workflows/deploy.yml`: build + push to GHCR, copy `deploy/` over SSH, `docker compose pull && up -d`, check `/healthz`
 - [x] Docker log rotation (`json-file` `max-size`) in compose
 - [x] Full `relay-security-review` skill pass over the whole codebase before first deploy
-- [x] First production deploy; register ali and ali's wife; send a real message to each
+- [x] First production deploy; register ali and a family member; send a real message to each
 - [ ] README "Running locally" verified against reality
 
 ## Phase 7: answers
