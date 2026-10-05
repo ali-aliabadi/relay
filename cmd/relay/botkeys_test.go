@@ -51,6 +51,14 @@ func TestBotKeys(t *testing.T) {
 		return resp.StatusCode
 	}
 
+	// Only the admin's /help lists the admin commands.
+	bot.AddText(4242, "/help", "")
+	awaitTo(t, bot, 4242, "/newkey <app>")
+	bot.AddText(5555, "/help", "mallory")
+	if got := awaitTo(t, bot, 5555, "Relay sends you notifications"); strings.Contains(got, "/newkey") {
+		t.Errorf("stranger's /help = %q", got)
+	}
+
 	// Someone else gets the usual hint and no key.
 	bot.AddText(5555, "/newkey evil", "mallory")
 	if got := awaitTo(t, bot, 5555, "To answer"); strings.Contains(got, "key") {

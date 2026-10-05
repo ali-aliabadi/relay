@@ -300,6 +300,14 @@ Relay stops. A name with a working key is refused; replacing a key is
   (`relay clients create`) stays for keys that never touch Telegram.
 - Relay logs `api key created` / `api key revoked` with the client ID only.
 
+### Command menu and /help
+
+On start (and on every `/help`) the poller sets the bot's "/" menu with
+`setMyCommands`: `/start` and `/help` for everyone, plus `/invite`, `/newkey`,
+`/keys` and `/revoke` scoped to the admin's chat only. `/help` lists what the
+sender can use. The menu only hides commands; each admin command still checks
+the chat. A newly linked admin sends `/help` once to get their menu.
+
 ### Answers
 
 `serve` long-polls `getUpdates` (no webhook, so nothing changes in nginx or

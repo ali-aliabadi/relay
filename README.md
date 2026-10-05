@@ -137,7 +137,8 @@ API keys work the same way from that chat: `/newkey my-app` replies with a key
 that deletes itself after a minute (copy it straight away), `/keys` lists app
 names and `/revoke my-app` turns a key off. The key passes through Telegram's
 servers, which aren't end-to-end encrypted; use the CLI above for a key that
-should never leave the VPS.
+should never leave the VPS. Send `/help` to see your commands; the admin ones
+show up in the "/" menu of your chat only.
 
 One-time setup is listed under "Phase 0" in [docs/ROADMAP.md](docs/ROADMAP.md).
 

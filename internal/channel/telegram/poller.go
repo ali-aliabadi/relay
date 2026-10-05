@@ -27,10 +27,13 @@ type Poller struct {
 	// ClaimLink links chatID with the token of an invite link (/start <token>).
 	ClaimLink func(ctx context.Context, token, chatID string) (Claimed, error)
 	// Keys handles /newkey, /keys and /revoke (cmd) from chatID; nil turns them off.
-	Keys    func(ctx context.Context, chatID, cmd, args string) (KeyReply, error)
-	KeyTTL  time.Duration // how long a new API key stays in the chat; 1 minute when zero
-	Logger  *slog.Logger
-	Backoff time.Duration // after a failed poll; 5s when zero
+	Keys   func(ctx context.Context, chatID, cmd, args string) (KeyReply, error)
+	KeyTTL time.Duration // how long a new API key stays in the chat; 1 minute when zero
+	// AdminChat returns the admin's linked chat ("" if none), which gets the
+	// admin command menu; nil means admin commands are off.
+	AdminChat func(ctx context.Context) (string, error)
+	Logger    *slog.Logger
+	Backoff   time.Duration // after a failed poll; 5s when zero
 
 	bot     string         // the bot's username, cached by botUsername; poller goroutine only
 	pending sync.WaitGroup // key messages waiting to be deleted
@@ -52,6 +55,7 @@ const replyHint = "To answer a question, reply to its message. To link this chat
 // side for 24h, so a restart picks up where it stopped.
 func (p *Poller) Run(ctx context.Context) {
 	defer p.pending.Wait()
+	p.syncMenu(ctx)
 	backoff := p.Backoff
 	if backoff <= 0 {
 		backoff = 5 * time.Second
@@ -139,6 +143,8 @@ func (p *Poller) handleMessage(ctx context.Context, m *UpdateMessage) error {
 		if handled, err := p.handleInvite(ctx, chat, args); handled {
 			return err
 		}
+	case cmd == "/help":
+		return p.handleHelp(ctx, chat)
 	case cmd == "/newkey" || cmd == "/keys" || cmd == "/revoke":
 		if handled, err := p.handleKeys(ctx, chat, cmd, args); handled {
 			return err
