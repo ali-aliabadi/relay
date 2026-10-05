@@ -25,9 +25,9 @@ message and delivery attempt.
 
 ## Scope
 
-- Users: ali and ali's wife, registered by the admin via the bot's `/invite` or the admin CLI.
+- Users: ali and a family member, registered by the admin via the bot's `/invite` or the admin CLI.
 - MVP channel: Telegram only. SMS comes later; provider not chosen yet.
-- Hosting: existing VPS (`german-vps`) with Docker, behind the VPS's existing nginx at `relay.alialiabadi.ir`.
+- Hosting: existing VPS with Docker, behind the VPS's existing nginx at `relay.alialiabadi.ir`.
 - Deploy: merging to `master` deploys via GitHub Actions.
 
 ## Stack
@@ -392,7 +392,7 @@ provider fakes, and later Mailpit for email or Postgres if adopted).
 
 ## Deployment
 
-- Target: the VPS reachable as `german-vps`, Docker already installed.
+- Target: a VPS with Docker already installed.
 - Files on the VPS in `/opt/relay`: `docker-compose.yml` (copied from `deploy/` on every deploy) and `.env` (created by hand, never in git).
 - The VPS already runs nginx on ports 80/443 for other services, so Relay doesn't bring its own proxy. Compose runs one service, `relay` (image `ghcr.io/ali-aliabadi/relay`), with a named volume at `/data`, published only on `127.0.0.1:${RELAY_HOST_PORT:-18080}`. The domain is proxied by Cloudflare (SSL mode Full), so nginx serves `relay.alialiabadi.ir` on 443 with the VPS's existing self-signed origin certificate, restores the client address from `CF-Connecting-IP` (trusted only from Cloudflare's ranges, scoped to this site), and proxies to that port, overwriting `X-Forwarded-For` with that address. The site config is `deploy/nginx-relay.conf`; it's installed by hand once, and deploys never touch nginx.
 - **CI** (`.github/workflows/ci.yml`): on pull requests and pushes to `master`, run `make check`, `make test-e2e` and the image scan.
