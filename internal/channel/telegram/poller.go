@@ -26,7 +26,8 @@ type Poller struct {
 	Invite func(ctx context.Context, chatID, args string) (InviteReply, error)
 	// ClaimLink links chatID with the token of an invite link (/start <token>).
 	ClaimLink func(ctx context.Context, token, chatID string) (Claimed, error)
-	// Keys handles /newkey, /keys and /revoke (cmd) from chatID; nil turns them off.
+	// Keys handles /newkey, /keys, /revoke and /recipients (cmd) from chatID;
+	// nil turns them off.
 	Keys   func(ctx context.Context, chatID, cmd, args string) (KeyReply, error)
 	KeyTTL time.Duration // how long a new API key stays in the chat; 1 minute when zero
 	// AdminChat returns the admin's linked chat ("" if none), which gets the
@@ -145,7 +146,7 @@ func (p *Poller) handleMessage(ctx context.Context, m *UpdateMessage) error {
 		}
 	case cmd == "/help":
 		return p.handleHelp(ctx, chat)
-	case cmd == "/newkey" || cmd == "/keys" || cmd == "/revoke":
+	case cmd == "/newkey" || cmd == "/keys" || cmd == "/revoke" || cmd == "/recipients":
 		if handled, err := p.handleKeys(ctx, chat, cmd, args); handled {
 			return err
 		}

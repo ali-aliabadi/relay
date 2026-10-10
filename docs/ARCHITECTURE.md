@@ -278,6 +278,7 @@ The same admin chat manages app keys, so making one needs no SSH:
 /newkey photo-sync     new key for an app (or a fresh one for a revoked app)
 /keys                  app names, working and revoked; never keys
 /revoke photo-sync     the key stops working at once
+/recipients            usernames, display names, aliases and linked channels
 ```
 
 `/newkey` replies with a plain note (set `RELAY_API_KEY`, `RELAY_APP=<app>`)
@@ -286,6 +287,8 @@ preview). The poller deletes that message after one minute, or at once when
 Relay stops. A name with a working key is refused; replacing a key is
 `/revoke` then `/newkey`, which keeps the client's ID and messages.
 
+- `/recipients` is the admin's view of `GET /v1/recipients`: names and
+  whether each person is linked, never chat IDs.
 - Same gate as `/invite`: only the admin's linked private chat, everyone else
   gets the usual hint, off without `RELAY_ADMIN_RECIPIENT`. That makes the
   admin's Telegram account a credential for creating keys; it should have a
@@ -334,7 +337,7 @@ loses nothing.
 | `RELAY_METRICS_ADDR` | `127.0.0.1:9090` | Internal listener for `/metrics` (and `/debug/pprof` when `RELAY_PPROF=true`) |
 | `RELAY_PPROF` | `false` | Serve `/debug/pprof` on the metrics listener |
 | `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image or file) |
-| `RELAY_ADMIN_RECIPIENT` | *(empty)* | Username or alias allowed to send `/invite`, `/newkey`, `/keys` and `/revoke` to the bot from their linked Telegram chat; empty turns them off |
+| `RELAY_ADMIN_RECIPIENT` | *(empty)* | Username or alias allowed to send `/invite`, `/newkey`, `/keys`, `/revoke` and `/recipients` to the bot from their linked Telegram chat; empty turns them off |
 | `RELAY_TRUST_FORWARDED_FOR` | `false` | Take the client IP from the last `X-Forwarded-For` entry (set by compose, since Relay is only reachable through nginx on the same host) |
 
 ## Privacy and security

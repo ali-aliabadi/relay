@@ -75,13 +75,14 @@ fetches it; after that it's final.
 ## Using Relay from your apps' AI agents
 
 [`skills/relay-notify/SKILL.md`](skills/relay-notify/SKILL.md) teaches an agent
-the whole API: who to send to (`admin` when unsure), urgency, blocks, asking
-questions and reading answers, retries and privacy. It ships
-`scripts/relay.py`, a standard-library Python tool with `notify`, `ask` and
-`answer` commands. Copy the folder into the other app's `.claude/skills/` and
+the whole API: who to send to (always named, never a default), urgency,
+blocks, asking questions and reading answers, retries and privacy. It ships
+`scripts/relay.py`, a standard-library Python tool with `notify`, `ask`,
+`answer`, `recipients` and `check` (key works, recipient exists) commands. Copy the folder into the other app's `.claude/skills/` and
 give that app `RELAY_URL`, its own `RELAY_API_KEY` (send the bot `/newkey <app-name>`, or `relay clients create <app-name>`),
 `RELAY_APP` (its name, sent as every message's source) and optionally
-`RELAY_USER` (who it sends to by default, `admin` if unset). Go apps get a
+`RELAY_USER` (who it sends to when a call names nobody; with neither, sending
+fails). Go apps get a
 copy-in client in `references/go.md`.
 
 ## How it works
@@ -181,7 +182,8 @@ tap it and press Start, they're linked and the bot tells you.
 
 API keys work the same way from that chat: `/newkey my-app` replies with a key
 that deletes itself after a minute (copy it straight away), `/keys` lists app
-names and `/revoke my-app` turns a key off. The key passes through Telegram's
+names and `/revoke my-app` turns a key off. `/recipients` lists who apps can
+send to, with aliases and whether each person is linked yet. The key passes through Telegram's
 servers, which aren't end-to-end encrypted; use the CLI above for a key that
 should never leave the VPS. Send `/help` to see your commands; the admin ones
 show up in the "/" menu of your chat only.

@@ -92,6 +92,7 @@ should be one small PR unless noted. Design details are in
 - [x] Aliases: `relay recipients alias ali admin`; any alias works in `to`, one delivery per person
 - [x] `/invite <user> [name]` in the admin's Telegram chat: one-time `t.me` Start link, no terminal (`RELAY_ADMIN_RECIPIENT`)
 - [x] `/newkey <app>`, `/keys`, `/revoke <app>` in the admin's Telegram chat; the key message deletes itself after a minute
+- [x] `/recipients` in the admin's Telegram chat; relay-notify skill: `check` (key and recipient) and no default `admin` recipient
 
 ## Phase 9: files
 
