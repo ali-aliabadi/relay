@@ -11,19 +11,21 @@ Standard library only (Python 3.8+). Use it from the shell:
     relay.py send < message.json          # any POST /v1/messages body
     relay.py status msg_01J...
     relay.py recipients
+    relay.py check --to ali               # config, key and recipient all good?
 
 or import it: notify(), ask(), wait_for_answer(), send(), status(), recipients(),
-file_block().
+check(), file_block().
 
 Configuration comes from the environment (see SKILL.md):
     RELAY_URL      Relay's base URL, e.g. https://relay.alialiabadi.ir (required)
     RELAY_API_KEY  this app's API key (required; never print or log it)
     RELAY_APP      this app's name, sent as every message's source (required)
-    RELAY_USER     who to notify when no --to is given (default: admin;
-                   the old name RELAY_ADMIN is still read as a fallback)
+    RELAY_USER     who to notify when no --to is given (optional; with neither,
+                   sending fails: there is no default recipient)
 
-Exit codes: 0 ok, 1 Relay or network error, 2 bad usage or config,
-3 nobody answered before --wait ran out.
+Exit codes: 0 ok, 1 Relay or network error, 2 bad usage or config (including
+no recipient), 3 nobody answered before --wait ran out, 4 check found a
+recipient that is unknown or can't receive yet.
 """
 
 import argparse
@@ -38,6 +40,7 @@ import urllib.request
 import uuid
 
 NO_ANSWER = 3
+CHECK_FAILED = 4
 MAX_FILE_BYTES = 5 << 20  # Relay's limit for one file block
 
 
@@ -48,6 +51,17 @@ class RelayError(Exception):
         self.status, self.code, self.problems = status, code, problems or []
         detail = "; ".join(self.problems) or message
         super().__init__(f"relay: {status} {code}: {detail}")
+
+
+class ConfigError(RelayError):
+    """Missing setup the caller must supply, such as who to notify."""
+
+    def __init__(self, message):
+        super().__init__(0, "config", message)
+        self.args = (f"relay: {message}",)
+
+    def __str__(self):
+        return self.args[0]
 
 
 def _config():
@@ -61,15 +75,18 @@ def _config():
 
 
 def user():
-    """The default recipient: $RELAY_USER, else the old $RELAY_ADMIN, else "admin"."""
-    for name in ("RELAY_USER", "RELAY_ADMIN"):
-        value = os.environ.get(name, "").strip()
-        if value:
-            return value
-    return "admin"
+    """This app's recipient from $RELAY_USER, or None. There is no default."""
+    return os.environ.get("RELAY_USER", "").strip() or None
 
 
-admin = user  # old name, kept for apps that already import it
+def _to(to):
+    """The recipients to send to: to if given, else [$RELAY_USER]."""
+    if to:
+        return list(to)
+    if user():
+        return [user()]
+    raise ConfigError("say who to notify: pass --to NAME (or to=[...]) or set RELAY_USER; "
+                      "run 'relay.py recipients' to see who exists")
 
 
 def _request(method, path, body=None, retries=3):
@@ -110,9 +127,10 @@ def _api_error(e):
 
 def send(body):
     """POSTs a full /v1/messages body. Fills in to (RELAY_USER), source
-    (RELAY_APP) and idempotency_key when missing. Returns {"id", "status"}."""
+    (RELAY_APP) and idempotency_key when missing; with no to and no
+    RELAY_USER it raises ConfigError. Returns {"id", "status"}."""
     body = dict(body)
-    body.setdefault("to", [user()])
+    body["to"] = _to(body.get("to"))
     body.setdefault("source", _config()[2])
     body.setdefault("idempotency_key", "auto-" + uuid.uuid4().hex)
     return _request("POST", "/v1/messages", body)
@@ -170,7 +188,7 @@ def ask(question, options=None, text=None, title=None, urgency="normal", to=None
 
 
 def _envelope(blocks, title, urgency, to, key):
-    body = {"to": list(to) if to else [user()], "urgency": urgency, "blocks": blocks}
+    body = {"to": _to(to), "urgency": urgency, "blocks": blocks}
     for name, value in (("title", title), ("idempotency_key", key)):
         if value:
             body[name] = value
@@ -205,6 +223,36 @@ def recipients():
     return _request("GET", "/v1/recipients")["recipients"]
 
 
+def check(to=None):
+    """Checks the setup without sending anything: RELAY_URL and RELAY_API_KEY
+    work, and each name in to (default RELAY_USER) is a recipient with a
+    linked channel. Returns {"ok", "app", "checked", "problems", "recipients"}.
+    Raises RelayError when Relay can't be reached or rejects the key."""
+    _, _, app = _config()
+    rs = recipients()
+    names = list(to) if to else ([user()] if user() else [])
+    by_name = {}
+    for r in rs:
+        for n in [r["username"], *r.get("aliases", [])]:
+            by_name[n] = r
+    checked, problems = [], []
+    for n in names:
+        r = by_name.get(n)
+        if r is None:
+            problems.append(f"{n}: unknown recipient")
+            continue
+        if not r.get("linked_channels"):
+            problems.append(f"{n}: no linked channel yet, so nothing can reach them")
+        checked.append({"name": n, "username": r["username"], "linked_channels": r.get("linked_channels", [])})
+    if not names:
+        problems.append("no recipient to check: pass --to NAME or set RELAY_USER")
+    available = [{"username": r["username"], "aliases": r.get("aliases", []),
+                  "display_name": r.get("display_name", ""),
+                  "linked_channels": r.get("linked_channels", [])} for r in rs]
+    return {"ok": not problems, "app": app, "checked": checked, "problems": problems,
+            "recipients": available}
+
+
 def _parse_fields(pairs):
     out = []
     for p in pairs or []:
@@ -221,7 +269,7 @@ def _cli(argv):
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def common(sp):
-        sp.add_argument("--to", action="append", help="recipient username or alias (repeatable; default $RELAY_USER or admin)")
+        sp.add_argument("--to", action="append", help="recipient username or alias (repeatable; default $RELAY_USER, required without it)")
         sp.add_argument("--urgency", default="normal", choices=["low", "normal", "high", "critical"])
         sp.add_argument("--title")
         sp.add_argument("--key", help="idempotency key; reuse it when retrying the same notification")
@@ -249,6 +297,8 @@ def _cli(argv):
 
     sub.add_parser("send", help="send a full POST /v1/messages JSON body read from stdin")
     sub.add_parser("recipients", help="list recipients")
+    c = sub.add_parser("check", help="check config, API key and recipient without sending anything")
+    c.add_argument("--to", action="append", help="recipient to check (repeatable; default $RELAY_USER)")
     s = sub.add_parser("status", help="delivery status of a message")
     s.add_argument("message_id")
 
@@ -272,6 +322,12 @@ def _cli(argv):
         return send(json.load(sys.stdin))
     if args.cmd == "status":
         return status(args.message_id)
+    if args.cmd == "check":
+        res = check(args.to)
+        if not res["ok"]:
+            print(json.dumps(res, ensure_ascii=False))
+            sys.exit(CHECK_FAILED)
+        return res
     return {"recipients": recipients()}
 
 
@@ -286,6 +342,9 @@ def _waited(message_id, wait, every):
 def main():
     try:
         print(json.dumps(_cli(sys.argv[1:]), ensure_ascii=False))
+    except ConfigError as e:
+        print(e, file=sys.stderr)
+        sys.exit(2)
     except RelayError as e:
         print(e, file=sys.stderr)
         sys.exit(1)

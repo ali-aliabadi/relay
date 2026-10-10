@@ -1,6 +1,6 @@
 module github.com/ali-aliabadi/relay
 
-go 1.27.1
+go 1.27.2
 
 require (
 	github.com/moby/moby/api v1.56.0

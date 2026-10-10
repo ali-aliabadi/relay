@@ -14,8 +14,8 @@ import (
 
 const keysUsage = "Use: /newkey <app>, /keys, or /revoke <app>. App names use a-z, 0-9, '-' and '_'."
 
-// botKeys answers /newkey <app>, /keys and /revoke <app>, but only in the
-// admin's own linked chat. Returns nil (the commands are off) when no admin
+// botKeys answers /newkey <app>, /keys, /revoke <app> and /recipients, but
+// only in the admin's own linked chat. Returns nil (the commands are off) when no admin
 // is configured.
 func botKeys(admin string, recipients *core.Recipients, clients *core.Clients, logger *slog.Logger,
 ) func(ctx context.Context, chatID, cmd, args string) (telegram.KeyReply, error) {
@@ -31,6 +31,8 @@ func botKeys(admin string, recipients *core.Recipients, clients *core.Clients, l
 		switch {
 		case cmd == "/keys" && args == "":
 			return keysList(ctx, clients)
+		case cmd == "/recipients":
+			return recipientsReply(ctx, recipients)
 		case cmd == "/newkey" && app != "":
 			return newKey(ctx, clients, logger, app)
 		case cmd == "/revoke" && app != "":

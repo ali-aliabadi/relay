@@ -44,7 +44,7 @@ func TestPollerMenuAndHelpForAdmin(t *testing.T) {
 	}
 	r.bot.AddText(42, "/help", "")
 	text := r.await(t, "sendMessage", 2)[1].Params["text"].(string)
-	for _, want := range []string{"/invite", "/newkey", "/keys", "/revoke", "/start"} {
+	for _, want := range []string{"/invite", "/newkey", "/keys", "/revoke", "/recipients", "/start"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("admin /help lacks %s: %q", want, text)
 		}
@@ -57,7 +57,7 @@ func TestPollerMenuAndHelpForAdmin(t *testing.T) {
 			t.Errorf("everyone's menu = %v", c.Params)
 		case scope != nil:
 			adminMenus++
-			if scope["type"] != "chat" || scope["chat_id"] != float64(42) || len(commandNames(c.Params)) != 6 {
+			if scope["type"] != "chat" || scope["chat_id"] != float64(42) || len(commandNames(c.Params)) != 7 {
 				t.Errorf("admin menu = %v", c.Params)
 			}
 		}

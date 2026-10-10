@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// KeyReply is what the admin's /newkey, /keys or /revoke produced.
+// KeyReply is what the admin's /newkey, /keys, /revoke or /recipients produced.
 type KeyReply struct {
 	Admin bool   // false: not the admin's chat, so the command is treated like any text
 	Text  string // plain reply to the admin

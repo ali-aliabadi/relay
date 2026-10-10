@@ -24,6 +24,7 @@ var (
 		command{"newkey", "<app>: new API key for an app"},
 		command{"keys", "List apps with API keys"},
 		command{"revoke", "<app>: turn an app's API key off"},
+		command{"recipients", "List who apps can send to"},
 	)
 )
 
