@@ -274,8 +274,10 @@ curl -sS -X POST "$RELAY_URL/v1/messages" \
 
 - `options`: 1-10 unique options, up to 64 chars each. Leave it out for a free-text reply.
 - `reply: "voice"` (optional, no `options`): the person answers by replying with a
-  Telegram voice note (or an audio file) up to 5 MB, about 5 minutes. Text to it,
-  or a voice note to a typed question, gets a hint and isn't saved.
+  Telegram voice note (or an audio file) up to 20 MB, Telegram's limit for bots
+  (over an hour of voice note). Text to it, or a voice note to a typed question,
+  gets a hint and isn't saved. People may take hours: keep the message ID and
+  check `answer` on your next run rather than blocking on `--wait`.
 - At most one question per message.
 - `webhook` (optional): a public `https` URL. When an answer arrives, Relay POSTs
   `{"event": "answer", "message_id": "msg_..."}` to it: only the ID, never the

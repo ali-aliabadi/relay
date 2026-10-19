@@ -101,7 +101,8 @@ def _request(method, path, body=None, retries=3):
             "User-Agent": "relay-notify-skill",
         })
         try:
-            timeout = 15 if len(data or b"") < (1 << 20) else 120  # room to upload a file
+            big = len(data or b"") >= (1 << 20) or path.endswith("/answers")
+            timeout = 120 if big else 15  # room to upload a file or fetch a voice answer
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.load(resp)
         except urllib.error.HTTPError as e:

@@ -26,5 +26,5 @@ const (
 	MaxIdempotencyLen = 128
 	MaxOptions        = 10
 	MaxOptionLen      = 64
-	MaxVoiceBytes     = 5 << 20 // a voice-note answer; minutes of Telegram's Opus audio
+	MaxVoiceBytes     = 20 << 20 // a voice-note answer; Telegram's own cap on bot downloads
 )

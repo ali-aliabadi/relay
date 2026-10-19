@@ -53,7 +53,7 @@ var feedback = map[string]string{
 }
 
 // tooLong is the feedback for a voice note over message.MaxVoiceBytes.
-const tooLong = "That recording is too large for Relay (5 MB, about 5 minutes). Please record a shorter one."
+const tooLong = "That recording is over 20 MB, the most a Telegram bot can download. Please send it as a voice note, or split it in two."
 
 const replyHint = "To answer a question, reply to its message. To link this chat to Relay, send /start."
 
