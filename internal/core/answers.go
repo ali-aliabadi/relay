@@ -35,7 +35,12 @@ func (a *Answers) Record(ctx context.Context, in channel.Answer) (channel.Answer
 	}
 	res, text := evaluate(m, in)
 	if res.Outcome == channel.AnswerSaved {
-		saved, err := a.Store.SaveAnswer(ctx, m.ID, d.RecipientID, text)
+		var saved bool
+		if len(in.Audio) > 0 { // only a voice question saves audio (see evaluate)
+			saved, err = a.Store.SaveVoiceAnswer(ctx, m.ID, d.RecipientID, in.AudioType, in.Audio)
+		} else {
+			saved, err = a.Store.SaveAnswer(ctx, m.ID, d.RecipientID, text)
+		}
 		if err != nil {
 			return channel.AnswerResult{}, err
 		}
@@ -54,7 +59,7 @@ func (a *Answers) Record(ctx context.Context, in channel.Answer) (channel.Answer
 }
 
 // evaluate checks an answer against the message's question and returns the
-// outcome and, when saved, the answer text.
+// outcome and, when saved, the answer text (empty for a voice note).
 func evaluate(m store.Message, in channel.Answer) (channel.AnswerResult, string) {
 	if m.RedactedAt != nil {
 		return channel.AnswerResult{Outcome: channel.AnswerExpired}, ""
@@ -64,7 +69,15 @@ func evaluate(m store.Message, in channel.Answer) (channel.AnswerResult, string)
 		return channel.AnswerResult{Outcome: channel.AnswerUnknown}, ""
 	}
 	res := channel.AnswerResult{Outcome: channel.AnswerSaved, Options: q.Options}
+	if q.Reply == message.ReplyVoice {
+		if len(in.Audio) == 0 {
+			res.Outcome = channel.AnswerNeedVoice
+		}
+		return res, ""
+	}
 	switch {
+	case len(in.Audio) > 0 && len(q.Options) == 0:
+		res.Outcome = channel.AnswerNeedText
 	case len(q.Options) > 0 && in.Option < 0:
 		res.Outcome = channel.AnswerNeedOption
 	case len(q.Options) > 0 && in.Option >= len(q.Options), len(q.Options) == 0 && in.Option >= 0:

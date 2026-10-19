@@ -159,7 +159,10 @@ func renderFooter(msg message.Message) frag {
 	var q frag
 	if b, ok := message.Question(msg.Blocks); ok {
 		q = join(" ", text("❓"), wrap("b", text(truncate(b.Text, maxQuestionLen))))
-		if len(b.Options) == 0 {
+		switch {
+		case b.Reply == message.ReplyVoice:
+			q = join("\n", q, wrap("i", text("Reply to this message with a voice note to answer.")))
+		case len(b.Options) == 0:
 			q = join("\n", q, wrap("i", text("Reply to this message to answer.")))
 		}
 	}

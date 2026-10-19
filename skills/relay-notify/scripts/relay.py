@@ -101,7 +101,8 @@ def _request(method, path, body=None, retries=3):
             "User-Agent": "relay-notify-skill",
         })
         try:
-            timeout = 15 if len(data or b"") < (1 << 20) else 120  # room to upload a file
+            big = len(data or b"") >= (1 << 20) or path.endswith("/answers")
+            timeout = 120 if big else 15  # room to upload a file or fetch a voice answer
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.load(resp)
         except urllib.error.HTTPError as e:
@@ -174,13 +175,15 @@ def file_block(path, caption=None, filename=None, content_type=None):
 
 
 def ask(question, options=None, text=None, title=None, urgency="normal", to=None,
-        webhook=None, key=None):
-    """Asks a question: buttons with options, otherwise a typed reply.
-    Returns the message ID to pass to wait_for_answer()."""
+        webhook=None, key=None, voice=False):
+    """Asks a question: buttons with options, a voice note with voice=True,
+    otherwise a typed reply. Returns the message ID to pass to wait_for_answer()."""
     out = [{"type": "text", "text": text}] if text else []
     q = {"type": "question", "text": question}
     if options:
         q["options"] = list(options)
+    if voice:
+        q["reply"] = "voice"
     if webhook:
         q["webhook"] = webhook
     out.append(q)
@@ -202,7 +205,8 @@ def answers(message_id):
 
 def wait_for_answer(message_id, timeout_s=3600, every_s=20):
     """Polls until someone answers and returns the first answer
-    ({"recipient", "answer", "answered_at"}), or None after timeout_s."""
+    ({"recipient", "answer", "answered_at"}, plus "audio": {"content_type",
+    "base64"} for a voice note), or None after timeout_s."""
     deadline = time.monotonic() + timeout_s
     while True:
         got = answers(message_id)
@@ -284,6 +288,8 @@ def _cli(argv):
     a = sub.add_parser("ask", help="ask a question; prints the message ID, or the answer with --wait")
     a.add_argument("question")
     a.add_argument("--option", action="append", help="a button (repeatable); none means a typed reply")
+    a.add_argument("--voice", action="store_true", help="ask for a voice note instead of text")
+    a.add_argument("--save-audio", metavar="PATH", help="with --wait: write a voice-note answer here")
     a.add_argument("--text", help="context shown above the question")
     a.add_argument("--webhook", help="public https URL nudged when an answer arrives")
     a.add_argument("--wait", type=int, metavar="SECONDS", help="wait this long for the answer")
@@ -294,6 +300,7 @@ def _cli(argv):
     w.add_argument("message_id")
     w.add_argument("--wait", type=int, default=0, metavar="SECONDS", help="poll this long for an answer")
     w.add_argument("--every", type=int, default=20, metavar="SECONDS")
+    w.add_argument("--save-audio", metavar="PATH", help="write a voice-note answer here")
 
     sub.add_parser("send", help="send a full POST /v1/messages JSON body read from stdin")
     sub.add_parser("recipients", help="list recipients")
@@ -311,13 +318,15 @@ def _cli(argv):
         return notify(args.text, args.title, args.urgency, args.to, _parse_fields(args.field),
                       key=args.key, file=args.file, file_caption=args.file_caption)
     if args.cmd == "ask":
+        if args.voice and args.option:
+            p.error("--voice can't have --option")
         mid = ask(args.question, args.option, args.text, args.title, args.urgency, args.to,
-                  args.webhook, args.key)
+                  args.webhook, args.key, args.voice)
         if args.wait is None:
             return {"id": mid}
-        return _waited(mid, args.wait, args.every)
+        return _waited(mid, args.wait, args.every, args.save_audio)
     if args.cmd == "answer":
-        return _waited(args.message_id, args.wait, args.every)
+        return _waited(args.message_id, args.wait, args.every, args.save_audio)
     if args.cmd == "send":
         return send(json.load(sys.stdin))
     if args.cmd == "status":
@@ -331,11 +340,18 @@ def _cli(argv):
     return {"recipients": recipients()}
 
 
-def _waited(message_id, wait, every):
+def _waited(message_id, wait, every, save_audio=None):
     got = wait_for_answer(message_id, wait, every)
     if got is None:
         print(json.dumps({"id": message_id, "answer": None}))
         sys.exit(NO_ANSWER)
+    audio = got.pop("audio", None)
+    if audio and save_audio:
+        with open(save_audio, "wb") as f:
+            f.write(base64.b64decode(audio["base64"]))
+        got["audio"] = {"content_type": audio["content_type"], "saved_to": save_audio}
+    elif audio:
+        got["audio"] = audio
     return {"id": message_id, **got}
 
 

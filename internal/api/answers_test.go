@@ -57,6 +57,36 @@ func TestAnswersEndpoint(t *testing.T) {
 	}
 }
 
+func TestAnswersEndpointVoice(t *testing.T) {
+	h := newV1(t)
+	ali := h.linkedRecipient()
+	res := h.do("POST", "/v1/messages", `{"to":["ali"],"blocks":[{"type":"question","text":"Read this aloud.","reply":"voice"}]}`)
+	if res.status != http.StatusAccepted {
+		t.Fatalf("create voice question = %d %s", res.status, res.raw)
+	}
+	id := res.body["id"].(string)
+	if ok, err := h.st.SaveVoiceAnswer(t.Context(), id, ali.ID, "audio/ogg", []byte("OggS")); !ok || err != nil {
+		t.Fatalf("SaveVoiceAnswer = %v, %v", ok, err)
+	}
+	res = h.do("GET", "/v1/messages/"+id+"/answers", "")
+	as, _ := res.body["answers"].([]any)
+	if res.status != http.StatusOK || len(as) != 1 {
+		t.Fatalf("answers = %d %s", res.status, res.raw)
+	}
+	a := as[0].(map[string]any)
+	audio, _ := a["audio"].(map[string]any)
+	if a["answer"] != "" || audio["content_type"] != "audio/ogg" || audio["base64"] != "T2dnUw==" {
+		t.Errorf("answer = %v", a)
+	}
+	if strings.Contains(h.logs.String(), "T2dnUw") {
+		t.Errorf("logs contain the audio: %s", h.logs.String())
+	}
+	res = h.do("POST", "/v1/messages", `{"to":["ali"],"blocks":[{"type":"question","text":"?","reply":"voice","options":["a"]}]}`)
+	if res.status != http.StatusUnprocessableEntity || !strings.Contains(res.raw, "can't have options") {
+		t.Errorf("voice question with options = %d %s", res.status, res.raw)
+	}
+}
+
 func TestAnswersEndpointAccess(t *testing.T) {
 	h := newV1(t)
 	ali := h.linkedRecipient()

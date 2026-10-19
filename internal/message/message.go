@@ -24,6 +24,9 @@ const (
 	BlockFile     = "file"
 )
 
+// ReplyVoice is a question's Reply when the answer is a voice note.
+const ReplyVoice = "voice"
+
 // Request is the body of POST /v1/messages and POST /v1/preview.
 type Request struct {
 	To             []string `json:"to"`
@@ -59,6 +62,7 @@ type Block struct {
 	Filename    string     `json:"filename,omitempty"`     // file
 	Options     []string   `json:"options,omitempty"`      // question: buttons; none means a typed reply
 	Webhook     string     `json:"webhook,omitempty"`      // question: called when an answer arrives
+	Reply       string     `json:"reply,omitempty"`        // question: "voice" asks for a voice note instead of text
 
 	// Attachment is set by Relay, never by callers: the index into the
 	// message's stored attachments that holds this inline image's or file's bytes.

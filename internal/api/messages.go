@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -88,9 +89,16 @@ func (h messageHandlers) get(w http.ResponseWriter, r *http.Request) {
 }
 
 type answerResponse struct {
-	Recipient  string `json:"recipient"`
-	Answer     string `json:"answer"`
-	AnsweredAt string `json:"answered_at"`
+	Recipient  string         `json:"recipient"`
+	Answer     string         `json:"answer"` // empty for a voice note
+	Audio      *audioResponse `json:"audio,omitempty"`
+	AnsweredAt string         `json:"answered_at"`
+}
+
+// audioResponse is a voice-note answer, inline like the file blocks apps send.
+type audioResponse struct {
+	ContentType string `json:"content_type"`
+	Base64      string `json:"base64"`
 }
 
 // answers returns the answers so far, one per recipient who answered. It is
@@ -103,7 +111,11 @@ func (h messageHandlers) answers(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]answerResponse, 0, len(as))
 	for _, a := range as {
-		out = append(out, answerResponse{Recipient: a.Username, Answer: a.Text, AnsweredAt: a.AnsweredAt.Format(time.RFC3339Nano)})
+		ar := answerResponse{Recipient: a.Username, Answer: a.Text, AnsweredAt: a.AnsweredAt.Format(time.RFC3339Nano)}
+		if a.Audio != nil {
+			ar.Audio = &audioResponse{ContentType: a.AudioType, Base64: base64.StdEncoding.EncodeToString(a.Audio)}
+		}
+		out = append(out, ar)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"answers": out})
 }

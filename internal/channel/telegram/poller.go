@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -48,7 +49,11 @@ var feedback = map[string]string{
 	channel.AnswerUnknown:    "That message isn't a question waiting for your answer.",
 	channel.AnswerNeedOption: "Please answer with one of the buttons.",
 	channel.AnswerNeedText:   "Please answer with text.",
+	channel.AnswerNeedVoice:  "Please answer with a voice note, as a reply to the question.",
 }
+
+// tooLong is the feedback for a voice note over message.MaxVoiceBytes.
+const tooLong = "That recording is over 20 MB, the most a Telegram bot can download. Please send it as a voice note, or split it in two."
 
 const replyHint = "To answer a question, reply to its message. To link this chat to Relay, send /start."
 
@@ -172,10 +177,28 @@ func (p *Poller) handleMessage(ctx context.Context, m *UpdateMessage) error {
 	if m.ReplyToMessage == nil {
 		return p.Client.SendText(ctx, chat, replyHint, m.MessageID)
 	}
-	res, err := p.OnAnswer(ctx, channel.Answer{
+	return p.handleReply(ctx, m)
+}
+
+// handleReply records a typed or voice-note reply to a question.
+func (p *Poller) handleReply(ctx context.Context, m *UpdateMessage) error {
+	chat := m.Chat.ID
+	a := channel.Answer{
 		Channel: Name, Address: strconv.FormatInt(chat, 10), Option: -1, Text: m.Text,
 		ProviderMessageID: strconv.FormatInt(m.ReplyToMessage.MessageID, 10),
-	})
+	}
+	if v := m.voice(); v != nil {
+		audio, err := p.Client.downloadVoice(ctx, v)
+		if errors.Is(err, errTooLarge) {
+			return p.Client.SendText(ctx, chat, tooLong, m.MessageID)
+		}
+		if err != nil {
+			_ = p.Client.SendText(ctx, chat, "Something went wrong, please try again.", m.MessageID)
+			return err
+		}
+		a.Audio, a.AudioType = audio, v.contentType()
+	}
+	res, err := p.OnAnswer(ctx, a)
 	if err != nil {
 		_ = p.Client.SendText(ctx, chat, "Something went wrong, please try again.", m.MessageID)
 		return err
