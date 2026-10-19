@@ -1,11 +1,12 @@
 -- name: SaveAnswer :execrows
 -- Inserts or replaces an answer the app hasn't fetched yet; 0 rows means it is final.
-INSERT INTO answers (message_id, recipient_id, answer, answered_at) VALUES (?, ?, ?, ?)
-ON CONFLICT (message_id, recipient_id) DO UPDATE SET answer = excluded.answer, answered_at = excluded.answered_at
+INSERT INTO answers (message_id, recipient_id, answer, audio, audio_type, answered_at) VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT (message_id, recipient_id) DO UPDATE SET answer = excluded.answer, audio = excluded.audio,
+    audio_type = excluded.audio_type, answered_at = excluded.answered_at
 WHERE answers.fetched_at IS NULL;
 
 -- name: ListAnswersForMessage :many
-SELECT a.message_id, a.recipient_id, r.username, a.answer, a.answered_at
+SELECT a.message_id, a.recipient_id, r.username, a.answer, a.audio, a.audio_type, a.answered_at
 FROM answers a JOIN recipients r ON r.id = a.recipient_id
 WHERE a.message_id = ? ORDER BY a.answered_at, r.username;
 

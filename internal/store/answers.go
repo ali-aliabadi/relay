@@ -9,16 +9,22 @@ import (
 	"github.com/ali-aliabadi/relay/internal/store/db"
 )
 
-const colAnswer = "answers.answer"
+const (
+	colAnswer = "answers.answer"
+	colAudio  = "answers.audio"
+)
 
 func answerRowID(messageID, recipientID string) string { return messageID + "/" + recipientID }
 
-// Answer is one recipient's answer to a message's question. Text is private.
+// Answer is one recipient's answer to a message's question. Text and Audio
+// are private. A voice answer has Audio and no Text.
 type Answer struct {
 	MessageID   string
 	RecipientID string
 	Username    string
 	Text        string
+	Audio       []byte
+	AudioType   string
 	AnsweredAt  time.Time
 }
 
@@ -30,12 +36,27 @@ func (a Answer) LogValue() slog.Value {
 // SaveAnswer stores or replaces a recipient's answer. It returns false when
 // the app has already fetched the answer, which makes it final.
 func (s *Store) SaveAnswer(ctx context.Context, messageID, recipientID, text string) (bool, error) {
-	sealed, err := s.seal([]byte(text), colAnswer, answerRowID(messageID, recipientID))
+	return s.saveAnswer(ctx, messageID, recipientID, text, nil, "")
+}
+
+// SaveVoiceAnswer is SaveAnswer for a voice note: audio of contentType.
+func (s *Store) SaveVoiceAnswer(ctx context.Context, messageID, recipientID, contentType string, audio []byte) (bool, error) {
+	return s.saveAnswer(ctx, messageID, recipientID, "", audio, contentType)
+}
+
+func (s *Store) saveAnswer(ctx context.Context, messageID, recipientID, text string, audio []byte, audioType string) (bool, error) {
+	rowID := answerRowID(messageID, recipientID)
+	sealed, err := s.seal([]byte(text), colAnswer, rowID)
+	if err != nil {
+		return false, err
+	}
+	sealedAudio, err := s.seal(audio, colAudio, rowID) // nil for a text answer
 	if err != nil {
 		return false, err
 	}
 	n, err := s.q.SaveAnswer(ctx, db.SaveAnswerParams{
-		MessageID: messageID, RecipientID: recipientID, Answer: sealed, AnsweredAt: formatTime(s.clock()),
+		MessageID: messageID, RecipientID: recipientID, Answer: sealed, Audio: sealedAudio,
+		AudioType: nullString(audioType), AnsweredAt: formatTime(s.clock()),
 	})
 	if err != nil {
 		return false, fmt.Errorf("saving answer: %w", mapErr(err))
@@ -54,7 +75,12 @@ func (s *Store) TakeAnswers(ctx context.Context, messageID string) ([]Answer, er
 		}
 		out = make([]Answer, 0, len(rows))
 		for _, r := range rows {
-			text, err := s.open(r.Answer, colAnswer, answerRowID(r.MessageID, r.RecipientID))
+			rowID := answerRowID(r.MessageID, r.RecipientID)
+			text, err := s.open(r.Answer, colAnswer, rowID)
+			if err != nil {
+				return err
+			}
+			audio, err := s.open(r.Audio, colAudio, rowID) // nil for a text answer
 			if err != nil {
 				return err
 			}
@@ -63,7 +89,8 @@ func (s *Store) TakeAnswers(ctx context.Context, messageID string) ([]Answer, er
 				return err
 			}
 			out = append(out, Answer{
-				MessageID: r.MessageID, RecipientID: r.RecipientID, Username: r.Username, Text: string(text), AnsweredAt: at,
+				MessageID: r.MessageID, RecipientID: r.RecipientID, Username: r.Username, Text: string(text),
+				Audio: audio, AudioType: r.AudioType.String, AnsweredAt: at,
 			})
 		}
 		if err := q.MarkAnswersFetched(ctx, db.MarkAnswersFetchedParams{

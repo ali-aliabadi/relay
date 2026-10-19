@@ -6,7 +6,7 @@ import (
 )
 
 // Answer is a recipient's reply to a question, as a channel received it.
-// Address and Text are private and never logged.
+// Address, Text and Audio are private and never logged.
 type Answer struct {
 	Channel           string
 	Address           string // who replied, e.g. the Telegram chat ID
@@ -14,6 +14,8 @@ type Answer struct {
 	ProviderMessageID string // set by typed replies: the message replied to
 	Option            int    // the tapped option, or -1 for a typed reply
 	Text              string // the typed reply
+	Audio             []byte // a voice-note reply, already downloaded
+	AudioType         string // Audio's content type, e.g. audio/ogg
 }
 
 // LogValue keeps the address and text out of logs.
@@ -28,7 +30,8 @@ const (
 	AnswerExpired    = "expired"     // content purged by retention
 	AnswerUnknown    = "unknown"     // not a question, or not this recipient's
 	AnswerNeedOption = "need_option" // typed reply to a question with buttons
-	AnswerNeedText   = "need_text"   // empty typed reply
+	AnswerNeedText   = "need_text"   // empty typed reply, or a voice note to a typed question
+	AnswerNeedVoice  = "need_voice"  // anything but a voice note to a voice question
 )
 
 // AnswerResult is what Relay did with an Answer. Options are the question's

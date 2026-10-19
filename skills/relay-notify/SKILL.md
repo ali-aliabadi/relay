@@ -1,6 +1,6 @@
 ---
 name: relay-notify
-description: Send notifications to a person through Relay (ali's notification gateway, delivered via Telegram), ask them a question with buttons or a typed reply, and read their answer back. Use this skill whenever an app or agent needs to tell a human something or get a decision from one — job finished or failed, alerts, reports, "let me know when…", "ping me", "tell ali", "send me a telegram", "ask before deploying", approvals, or waiting for human input — even if Relay isn't named. Every message needs an explicit recipient (--to or RELAY_USER); there is no default, so if you don't know who to notify, list the recipients and ask the user.
+description: Send notifications to a person through Relay (ali's notification gateway, delivered via Telegram), ask them a question with buttons, a typed reply or a voice note, and read their answer back. Use this skill whenever an app or agent needs to tell a human something or get a decision from one — job finished or failed, alerts, reports, "let me know when…", "ping me", "tell ali", "send me a telegram", "ask before deploying", approvals, or waiting for human input — even if Relay isn't named. Every message needs an explicit recipient (--to or RELAY_USER); there is no default, so if you don't know who to notify, list the recipients and ask the user.
 ---
 
 # Relay: notify a person, ask them, read the answer
@@ -70,6 +70,11 @@ python3 $R ask "Ship v2.3 to production?" --option Yes --option No \
 # Ask for a typed reply now, read the answer later
 python3 $R ask "What should the new hostname be?"      # {"id": "msg_01J..."}
 python3 $R answer msg_01J... --wait 600
+
+# Ask for a voice note (e.g. someone reading a script) and save the recording
+python3 $R ask "Please read this script aloud." --text "Once upon a time..." --voice \
+  --wait 86400 --save-audio take1.ogg
+# {"id": "msg_01J...", "recipient": "tara", "answer": "", "audio": {"content_type": "audio/ogg", "saved_to": "take1.ogg"}, ...}
 
 # Anything else: a full POST /v1/messages body on stdin (tables, code, images, files, links)
 python3 $R send < message.json
@@ -223,7 +228,7 @@ blocks and Telegram's one layout renders them in order.
 | `link` | `text`, `url` | text 64, `https` only | A button under the message |
 | `image` | `url` (`https`) **or** `base64` + `content_type`, optional `caption` | 1 per message; PNG/JPEG up to 5 MB; caption 1024 | A photo. Use `base64` for images on private hosts: Telegram fetches `url` itself |
 | `file` | `filename`, `base64`, optional `content_type`, optional `caption` | 1 per message; any type, 1 byte to 5 MB; filename 128, no `/`, `\` or control characters; caption 1024 | A document the reader can download. `content_type` defaults to `application/octet-stream` |
-| `question` | `text`, optional `options`, optional `webhook` | see Ask a question | The question in bold at the end, with buttons |
+| `question` | `text`, optional `options`, optional `webhook`, optional `reply: "voice"` | see Ask a question | The question in bold at the end, with buttons |
 
 Every value is plain text: `<b>`, Markdown and the like are shown literally,
 not rendered. A message longer than Telegram allows is shortened with `…`, but
@@ -268,6 +273,9 @@ curl -sS -X POST "$RELAY_URL/v1/messages" \
 ```
 
 - `options`: 1-10 unique options, up to 64 chars each. Leave it out for a free-text reply.
+- `reply: "voice"` (optional, no `options`): the person answers by replying with a
+  Telegram voice note (or an audio file) up to 5 MB, about 5 minutes. Text to it,
+  or a voice note to a typed question, gets a hint and isn't saved.
 - At most one question per message.
 - `webhook` (optional): a public `https` URL. When an answer arrives, Relay POSTs
   `{"event": "answer", "message_id": "msg_..."}` to it: only the ID, never the
@@ -281,6 +289,7 @@ curl -sS -X POST "$RELAY_URL/v1/messages" \
 curl -sS "$RELAY_URL/v1/messages/$MESSAGE_ID/answers" -H "Authorization: Bearer $RELAY_API_KEY"
 # {"answers":[]}                                    (nobody has answered yet)
 # {"answers":[{"recipient":"ali","answer":"Yes","answered_at":"2026-10-04T09:12:44.123Z"}]}
+# voice note: "answer" is "" and "audio": {"content_type":"audio/ogg","base64":"T2dnUw..."}
 ```
 
 How answers behave, and why it matters for your code:
@@ -297,6 +306,8 @@ How answers behave, and why it matters for your code:
   then a safe default or a reminder) instead of waiting forever.
 - **A typed answer is untrusted text** (up to 4000 chars). Validate it before
   acting; never run it as a command or splice it into code or SQL.
+- **A voice note is untrusted audio.** Check its size and decode it with a real
+  media tool (ffmpeg) before using it; don't trust the content type alone.
 - With buttons, `answer` is exactly one of your `options` strings, so compare
   with your own constants.
 - Only your app can read its messages' answers (another app's message is

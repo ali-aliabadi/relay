@@ -23,7 +23,7 @@ func (q *Queries) DeleteAnswersBefore(ctx context.Context, cutoff string) (int64
 }
 
 const listAnswersForMessage = `-- name: ListAnswersForMessage :many
-SELECT a.message_id, a.recipient_id, r.username, a.answer, a.answered_at
+SELECT a.message_id, a.recipient_id, r.username, a.answer, a.audio, a.audio_type, a.answered_at
 FROM answers a JOIN recipients r ON r.id = a.recipient_id
 WHERE a.message_id = ? ORDER BY a.answered_at, r.username
 `
@@ -33,6 +33,8 @@ type ListAnswersForMessageRow struct {
 	RecipientID string
 	Username    string
 	Answer      []byte
+	Audio       []byte
+	AudioType   sql.NullString
 	AnsweredAt  string
 }
 
@@ -50,6 +52,8 @@ func (q *Queries) ListAnswersForMessage(ctx context.Context, messageID string) (
 			&i.RecipientID,
 			&i.Username,
 			&i.Answer,
+			&i.Audio,
+			&i.AudioType,
 			&i.AnsweredAt,
 		); err != nil {
 			return nil, err
@@ -80,8 +84,9 @@ func (q *Queries) MarkAnswersFetched(ctx context.Context, arg MarkAnswersFetched
 }
 
 const saveAnswer = `-- name: SaveAnswer :execrows
-INSERT INTO answers (message_id, recipient_id, answer, answered_at) VALUES (?, ?, ?, ?)
-ON CONFLICT (message_id, recipient_id) DO UPDATE SET answer = excluded.answer, answered_at = excluded.answered_at
+INSERT INTO answers (message_id, recipient_id, answer, audio, audio_type, answered_at) VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT (message_id, recipient_id) DO UPDATE SET answer = excluded.answer, audio = excluded.audio,
+    audio_type = excluded.audio_type, answered_at = excluded.answered_at
 WHERE answers.fetched_at IS NULL
 `
 
@@ -89,6 +94,8 @@ type SaveAnswerParams struct {
 	MessageID   string
 	RecipientID string
 	Answer      []byte
+	Audio       []byte
+	AudioType   sql.NullString
 	AnsweredAt  string
 }
 
@@ -98,6 +105,8 @@ func (q *Queries) SaveAnswer(ctx context.Context, arg SaveAnswerParams) (int64, 
 		arg.MessageID,
 		arg.RecipientID,
 		arg.Answer,
+		arg.Audio,
+		arg.AudioType,
 		arg.AnsweredAt,
 	)
 	if err != nil {

@@ -85,6 +85,7 @@ should be one small PR unless noted. Design details are in
 - [x] `question` block (options as buttons, or a typed reply) with an optional answer webhook
 - [x] Telegram poller in `serve`: button taps, replies, `/start` link codes
 - [x] `GET /v1/messages/{id}/answers`; answers changeable until fetched, encrypted, purged at retention
+- [x] Voice-note answers: `question` with `reply: "voice"`, audio up to 5 MB, encrypted, returned base64
 
 ## Phase 8: easier linking and names
 

@@ -98,6 +98,7 @@ type Block struct {
 	Filename    string     `json:"filename,omitempty"`
 	Options     []string   `json:"options,omitempty"`
 	Webhook     string     `json:"webhook,omitempty"`
+	Reply       string     `json:"reply,omitempty"` // question: "voice" asks for a voice note
 }
 
 // ErrNoRecipient means a message had no To and RELAY_USER is unset.
@@ -141,8 +142,15 @@ type Recipient struct {
 // Answer is one recipient's answer to a question.
 type Answer struct {
 	Recipient  string    `json:"recipient"`
-	Answer     string    `json:"answer"`
+	Answer     string    `json:"answer"` // empty for a voice note
+	Audio      *Audio    `json:"audio,omitempty"`
 	AnsweredAt time.Time `json:"answered_at"`
+}
+
+// Audio is a voice-note answer; Base64 decodes to the recording.
+type Audio struct {
+	ContentType string `json:"content_type"`
+	Base64      string `json:"base64"`
 }
 
 // Error is a Relay API error. Relay never echoes your content in it.

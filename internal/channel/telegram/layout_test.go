@@ -83,6 +83,9 @@ var goldenCases = map[string]message.Message{
 	"question_typed": {Urgency: "normal", DeliveryID: "dlv_TEST", Blocks: []message.Block{
 		{Type: "question", Text: "What should the new hostname be?"},
 	}},
+	"question_voice": {Urgency: "normal", DeliveryID: "dlv_TEST", Blocks: []message.Block{
+		{Type: "question", Text: "Please read this script aloud.", Reply: message.ReplyVoice},
+	}},
 	"question_long_text": {Urgency: "normal", DeliveryID: "dlv_TEST", Blocks: []message.Block{
 		{Type: "text", Text: strings.Repeat("long text ", 500)},
 		{Type: "question", Text: "Still there?", Options: []string{"Yes"}},

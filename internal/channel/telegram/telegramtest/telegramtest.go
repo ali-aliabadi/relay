@@ -40,6 +40,7 @@ type Server struct {
 	fails   []Failure
 	updates []json.RawMessage
 	nextID  int64
+	files   map[string][]byte // voice notes by file_id, for getFile
 }
 
 // New returns a fake accepting token.
@@ -125,6 +126,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.control(w, r)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, "/file/bot") {
+		s.serveFile(w, r)
+		return
+	}
 	token, method, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/bot"), "/")
 	if !ok {
 		reply(w, http.StatusNotFound, Failure{Status: 404, Desc: "Not Found"}, nil)
@@ -151,6 +156,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply(w, http.StatusOK, Failure{}, ups)
 	case "sendMessage", "sendPhoto", "sendDocument":
 		s.send(w, idx)
+	case "getFile":
+		s.getFile(w, call.Params)
 	case "answerCallbackQuery", "editMessageReplyMarkup", "deleteMessage", "setMyCommands":
 		reply(w, http.StatusOK, Failure{}, true)
 	default:

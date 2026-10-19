@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -168,7 +169,7 @@ func TestPollerTapSavesAndTicksChoice(t *testing.T) {
 	edits := r.await(t, "editMessageReplyMarkup", 1)
 	acks := r.await(t, "answerCallbackQuery", 1)
 
-	if a := r.got(); len(a) != 1 || a[0] != (channel.Answer{Channel: "telegram", Address: "42", DeliveryID: "dlv_1", Option: 1}) {
+	if a := r.got(); len(a) != 1 || !reflect.DeepEqual(a[0], channel.Answer{Channel: "telegram", Address: "42", DeliveryID: "dlv_1", Option: 1}) {
 		t.Fatalf("answers = %+v", a)
 	}
 	if acks[0].Params["text"] != "✅ Answer saved." || acks[0].Params["callback_query_id"] == "" {
@@ -242,7 +243,7 @@ func TestPollerTypedReply(t *testing.T) {
 	r.bot.AddReply(42, 7, "nas-02")
 	sends := r.await(t, "sendMessage", 1)
 	want := channel.Answer{Channel: "telegram", Address: "42", ProviderMessageID: "7", Option: -1, Text: "nas-02"}
-	if a := r.got(); len(a) != 1 || a[0] != want {
+	if a := r.got(); len(a) != 1 || !reflect.DeepEqual(a[0], want) {
 		t.Fatalf("answers = %+v", a)
 	}
 	p := sends[0].Params

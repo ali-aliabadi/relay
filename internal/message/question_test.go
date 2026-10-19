@@ -16,6 +16,7 @@ func TestNormalizeQuestion(t *testing.T) {
 		{"webhook", Block{Type: BlockQuestion, Text: "Ok?", Options: []string{"Ok"}, Webhook: "https://app.example/hook?t=1"}},
 		{"max options", Block{Type: BlockQuestion, Text: "Pick", Options: strings.Split("abcdefghij", "")}},
 		{"long option", Block{Type: BlockQuestion, Text: "Pick", Options: []string{strings.Repeat("o", MaxOptionLen)}}},
+		{"voice reply", Block{Type: BlockQuestion, Text: "Please read this script aloud.", Reply: ReplyVoice}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -24,7 +25,8 @@ func TestNormalizeQuestion(t *testing.T) {
 				t.Fatal(err)
 			}
 			q, ok := Question(got.Blocks)
-			if !ok || q.Text != tt.q.Text || len(q.Options) != len(tt.q.Options) || q.Webhook != tt.q.Webhook {
+			if !ok || q.Text != tt.q.Text || len(q.Options) != len(tt.q.Options) || q.Webhook != tt.q.Webhook ||
+				q.Reply != tt.q.Reply {
 				t.Errorf("Question = %+v, %v", q, ok)
 			}
 		})
@@ -54,6 +56,9 @@ func TestNormalizeRejectsBadQuestions(t *testing.T) {
 		{"webhook no host", []Block{q("?", nil, "https://")}, "webhook: must be an https URL"},
 		{"two questions", []Block{q("a?", nil, ""), q("b?", nil, "")}, "at most 1 question"},
 		{"foreign field", []Block{{Type: BlockQuestion, Text: "?", URL: "https://a.b"}}, "don't belong"},
+		{"unknown reply", []Block{{Type: BlockQuestion, Text: "?", Reply: "video"}}, "reply: must be voice"},
+		{"voice with options", []Block{{Type: BlockQuestion, Text: "?", Reply: ReplyVoice, Options: []string{"a"}}}, "voice answer can't have options"},
+		{"reply on text block", []Block{{Type: BlockText, Text: "x", Reply: ReplyVoice}}, "don't belong"},
 		{"options on text block", []Block{{Type: BlockText, Text: "x", Options: []string{"a"}}}, "don't belong"},
 		{"webhook on link block", []Block{{Type: BlockLink, Text: "x", URL: "https://a.b", Webhook: "https://a.b"}}, "don't belong"},
 	}

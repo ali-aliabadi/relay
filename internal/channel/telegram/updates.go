@@ -29,6 +29,8 @@ type UpdateMessage struct {
 		MessageID int64 `json:"message_id"`
 	} `json:"reply_to_message"`
 	ReplyMarkup *replyMarkup `json:"reply_markup"`
+	Voice       *voiceFile   `json:"voice"` // a voice note
+	Audio       *voiceFile   `json:"audio"` // an audio file, accepted like a voice note
 }
 
 // CallbackQuery is a tap on an inline button with callback data.

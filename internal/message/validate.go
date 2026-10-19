@@ -171,6 +171,12 @@ func checkQuestion(c *checker, path string, b *Block) {
 	if b.Webhook != "" {
 		checkURL(c, path+".webhook", b.Webhook)
 	}
+	switch {
+	case b.Reply != "" && b.Reply != ReplyVoice:
+		c.addf("%s.reply: must be voice, or be left out", path)
+	case b.Reply == ReplyVoice && b.Options != nil:
+		c.addf("%s.reply: a voice answer can't have options", path)
+	}
 }
 
 func checkFields(c *checker, path string, items []Field) {
