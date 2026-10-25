@@ -29,7 +29,13 @@ func newTelegramCLI(t *testing.T) (cli, *telegramtest.Server) {
 
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	waitUpTo(t, 5*time.Second, cond)
+}
+
+// waitUpTo is waitFor with its own limit, for slow work such as a 45 MB upload under -race.
+func waitUpTo(t *testing.T, limit time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(limit)
 	for !cond() {
 		if time.Now().After(deadline) {
 			t.Fatal("timed out")

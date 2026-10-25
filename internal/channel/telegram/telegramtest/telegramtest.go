@@ -135,7 +135,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply(w, http.StatusNotFound, Failure{Status: 404, Desc: "Not Found"}, nil)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 16<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
 	call := decodeCall(r, token, method)
 	s.mu.Lock()
 	s.calls = append(s.calls, call)
@@ -226,11 +226,14 @@ func (s *Server) control(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maxBody is just over the Bot API's 50 MB upload limit.
+const maxBody = 52 << 20
+
 func decodeCall(r *http.Request, token, method string) Call {
 	c := Call{Token: token, Method: method}
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
-		r.Body = http.MaxBytesReader(nil, r.Body, 16<<20)
-		if err := r.ParseMultipartForm(16 << 20); err == nil { //nolint:gosec // test fake; body capped just above
+		r.Body = http.MaxBytesReader(nil, r.Body, maxBody)
+		if err := r.ParseMultipartForm(maxBody); err == nil { //nolint:gosec // test fake; body capped just above
 
 			c.Form = map[string]string{}
 			for k, v := range r.MultipartForm.Value {

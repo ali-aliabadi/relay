@@ -26,14 +26,17 @@ type Client struct {
 	baseURL string
 	token   obs.Secret
 	http    *http.Client
+	upload  *http.Client // for sendPhoto/sendDocument uploads, which can be up to 45 MB
 }
 
 // NewClient returns a client for baseURL (DefaultAPIURL in production).
 func NewClient(baseURL string, token obs.Secret, hc *http.Client) *Client {
+	up := hc
 	if hc == nil {
 		hc = &http.Client{Timeout: 60 * time.Second}
+		up = &http.Client{Timeout: 5 * time.Minute}
 	}
-	return &Client{baseURL: strings.TrimRight(baseURL, "/"), token: token, http: hc}
+	return &Client{baseURL: strings.TrimRight(baseURL, "/"), token: token, http: hc, upload: up}
 }
 
 // apiError is a Bot API error response. Description comes from Telegram and
@@ -65,7 +68,7 @@ func (c *Client) call(ctx context.Context, method string, body, out any) error {
 	if err != nil {
 		return fmt.Errorf("encoding %s: %w", method, err)
 	}
-	return c.do(ctx, method, "application/json", bytes.NewReader(payload), out)
+	return c.do(ctx, c.http, method, "application/json", bytes.NewReader(payload), out)
 }
 
 // upload is one file in a multipart request.
@@ -100,17 +103,17 @@ func (c *Client) callMultipart(ctx context.Context, method string, fields map[st
 	if err := mw.Close(); err != nil {
 		return fmt.Errorf("encoding %s: %w", method, err)
 	}
-	return c.do(ctx, method, mw.FormDataContentType(), &buf, out)
+	return c.do(ctx, c.upload, method, mw.FormDataContentType(), &buf, out)
 }
 
-func (c *Client) do(ctx context.Context, method, contentType string, body io.Reader, out any) error {
+func (c *Client) do(ctx context.Context, hc *http.Client, method, contentType string, body io.Reader, out any) error {
 	endpoint := c.baseURL + "/bot" + c.token.Reveal() + "/" + method
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return fmt.Errorf("building %s request: %w", method, scrub(err))
 	}
 	req.Header.Set("Content-Type", contentType)
-	resp, err := c.http.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		return fmt.Errorf("calling %s: %w", method, scrub(err))
 	}

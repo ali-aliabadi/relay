@@ -217,7 +217,9 @@ Rules: `title` is shown bold at the top; `source` as a small footer; `critical`
 adds 🚨 to the title. At most one `question` block. Limits: 20 blocks, 50 table rows × 8 columns, 1 image in the
 MVP (inline `base64` up to 5 MB, PNG/JPEG only; use `base64` for images on private
 hosts, since Telegram fetches `url` images itself), 1 file (inline `base64` only, up to
-5 MB, any type; `filename` up to 128 characters with no slashes or control characters).
+45 MB, under Telegram's 50 MB bot upload; any type; `filename` up to 128 characters with no
+slashes or control characters). The default request body limit fits a 5 MB file; files over 5 MB (up to 45 MB) need the admin to raise `RELAY_MAX_BODY_BYTES` (64 MB = `67108864`) and, for callers going through nginx, its `client_max_body_size`. A caller on the VPS itself
+can use Relay's loopback port and skip nginx and Cloudflare. Uploads to Telegram get 5 minutes.
 An image and a file together must still fit the request body limit. With both, or
 with text too long for a caption, the photo and the document each go first with their
 own caption and the text follows. A channel that can't show a block
@@ -338,7 +340,7 @@ loses nothing.
 | `RELAY_RETENTION_DAYS` | `30` | Message content is purged after this many days; metadata is kept |
 | `RELAY_METRICS_ADDR` | `127.0.0.1:9090` | Internal listener for `/metrics` (and `/debug/pprof` when `RELAY_PPROF=true`) |
 | `RELAY_PPROF` | `false` | Serve `/debug/pprof` on the metrics listener |
-| `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image or file) |
+| `RELAY_MAX_BODY_BYTES` | `7340032` | Request body size limit (7 MB, room for one 5 MB base64 image or file). `67108864` (64 MB) fits the largest file, 45 MB; raise it only if an app sends big files, since the limit applies before authentication |
 | `RELAY_ADMIN_RECIPIENT` | *(empty)* | Username or alias allowed to send `/invite`, `/newkey`, `/keys`, `/revoke` and `/recipients` to the bot from their linked Telegram chat; empty turns them off |
 | `RELAY_TRUST_FORWARDED_FOR` | `false` | Take the client IP from the last `X-Forwarded-For` entry (set by compose, since Relay is only reachable through nginx on the same host) |
 
