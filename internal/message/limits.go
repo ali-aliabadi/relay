@@ -11,7 +11,8 @@ const (
 	MaxFields         = 25
 	MaxImageBytes     = 5 << 20
 	MaxFiles          = 1
-	MaxFileBytes      = 5 << 20 // with base64, fits RELAY_MAX_BODY_BYTES and nginx's 8 MB cap
+	MaxFileBytes      = 45 << 20 // under Telegram's 50 MB bot upload; over DefaultFileBytes needs a bigger RELAY_MAX_BODY_BYTES
+	DefaultFileBytes  = 5 << 20  // the largest file that fits the default RELAY_MAX_BODY_BYTES and nginx's 8 MB cap
 	MaxFilenameLen    = 128
 	MaxContentTypeLen = 128
 	MaxTitleLen       = 256
