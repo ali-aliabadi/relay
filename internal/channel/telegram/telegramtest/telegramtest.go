@@ -40,7 +40,7 @@ type Server struct {
 	fails   []Failure
 	updates []json.RawMessage
 	nextID  int64
-	files   map[string][]byte // voice notes by file_id, for getFile
+	files   map[string][]byte // voice notes, photos and documents by file_id, for getFile
 }
 
 // New returns a fake accepting token.

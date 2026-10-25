@@ -12,12 +12,13 @@ import (
 const (
 	colAnswer = "answers.answer"
 	colAudio  = "answers.audio"
+	colImage  = "answers.image"
 )
 
 func answerRowID(messageID, recipientID string) string { return messageID + "/" + recipientID }
 
-// Answer is one recipient's answer to a message's question. Text and Audio
-// are private. A voice answer has Audio and no Text.
+// Answer is one recipient's answer to a message's question. Text, Audio and Image
+// are private. A voice answer has Audio and no Text; a picture answer has Image and no Text.
 type Answer struct {
 	MessageID   string
 	RecipientID string
@@ -25,6 +26,8 @@ type Answer struct {
 	Text        string
 	Audio       []byte
 	AudioType   string
+	Image       []byte
+	ImageType   string
 	AnsweredAt  time.Time
 }
 
@@ -36,27 +39,37 @@ func (a Answer) LogValue() slog.Value {
 // SaveAnswer stores or replaces a recipient's answer. It returns false when
 // the app has already fetched the answer, which makes it final.
 func (s *Store) SaveAnswer(ctx context.Context, messageID, recipientID, text string) (bool, error) {
-	return s.saveAnswer(ctx, messageID, recipientID, text, nil, "")
+	return s.saveAnswer(ctx, Answer{MessageID: messageID, RecipientID: recipientID, Text: text})
 }
 
 // SaveVoiceAnswer is SaveAnswer for a voice note: audio of contentType.
 func (s *Store) SaveVoiceAnswer(ctx context.Context, messageID, recipientID, contentType string, audio []byte) (bool, error) {
-	return s.saveAnswer(ctx, messageID, recipientID, "", audio, contentType)
+	return s.saveAnswer(ctx, Answer{MessageID: messageID, RecipientID: recipientID, Audio: audio, AudioType: contentType})
 }
 
-func (s *Store) saveAnswer(ctx context.Context, messageID, recipientID, text string, audio []byte, audioType string) (bool, error) {
-	rowID := answerRowID(messageID, recipientID)
-	sealed, err := s.seal([]byte(text), colAnswer, rowID)
+// SaveImageAnswer is SaveAnswer for a picture: image of contentType.
+func (s *Store) SaveImageAnswer(ctx context.Context, messageID, recipientID, contentType string, image []byte) (bool, error) {
+	return s.saveAnswer(ctx, Answer{MessageID: messageID, RecipientID: recipientID, Image: image, ImageType: contentType})
+}
+
+func (s *Store) saveAnswer(ctx context.Context, a Answer) (bool, error) {
+	rowID := answerRowID(a.MessageID, a.RecipientID)
+	sealed, err := s.seal([]byte(a.Text), colAnswer, rowID)
 	if err != nil {
 		return false, err
 	}
-	sealedAudio, err := s.seal(audio, colAudio, rowID) // nil for a text answer
+	sealedAudio, err := s.seal(a.Audio, colAudio, rowID) // nil unless a voice answer
+	if err != nil {
+		return false, err
+	}
+	sealedImage, err := s.seal(a.Image, colImage, rowID) // nil unless a picture answer
 	if err != nil {
 		return false, err
 	}
 	n, err := s.q.SaveAnswer(ctx, db.SaveAnswerParams{
-		MessageID: messageID, RecipientID: recipientID, Answer: sealed, Audio: sealedAudio,
-		AudioType: nullString(audioType), AnsweredAt: formatTime(s.clock()),
+		MessageID: a.MessageID, RecipientID: a.RecipientID, Answer: sealed, Audio: sealedAudio,
+		AudioType: nullString(a.AudioType), Image: sealedImage, ImageType: nullString(a.ImageType),
+		AnsweredAt: formatTime(s.clock()),
 	})
 	if err != nil {
 		return false, fmt.Errorf("saving answer: %w", mapErr(err))
@@ -80,7 +93,11 @@ func (s *Store) TakeAnswers(ctx context.Context, messageID string) ([]Answer, er
 			if err != nil {
 				return err
 			}
-			audio, err := s.open(r.Audio, colAudio, rowID) // nil for a text answer
+			audio, err := s.open(r.Audio, colAudio, rowID) // nil unless a voice answer
+			if err != nil {
+				return err
+			}
+			image, err := s.open(r.Image, colImage, rowID) // nil unless a picture answer
 			if err != nil {
 				return err
 			}
@@ -90,7 +107,7 @@ func (s *Store) TakeAnswers(ctx context.Context, messageID string) ([]Answer, er
 			}
 			out = append(out, Answer{
 				MessageID: r.MessageID, RecipientID: r.RecipientID, Username: r.Username, Text: string(text),
-				Audio: audio, AudioType: r.AudioType.String, AnsweredAt: at,
+				Audio: audio, AudioType: r.AudioType.String, Image: image, ImageType: r.ImageType.String, AnsweredAt: at,
 			})
 		}
 		if err := q.MarkAnswersFetched(ctx, db.MarkAnswersFetchedParams{

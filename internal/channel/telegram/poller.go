@@ -50,10 +50,11 @@ var feedback = map[string]string{
 	channel.AnswerNeedOption: "Please answer with one of the buttons.",
 	channel.AnswerNeedText:   "Please answer with text.",
 	channel.AnswerNeedVoice:  "Please answer with a voice note, as a reply to the question.",
+	channel.AnswerNeedImage:  "Please answer with a picture (a photo or an image file), as a reply to the question.",
 }
 
-// tooLong is the feedback for a voice note over message.MaxVoiceBytes.
-const tooLong = "That recording is over 20 MB, the most a Telegram bot can download. Please send it as a voice note, or split it in two."
+// tooLong is the feedback for a file over message.MaxAnswerFileBytes.
+const tooLong = "That file is over 20 MB, the most a Telegram bot can download. Please send a shorter voice note or a smaller picture."
 
 const replyHint = "To answer a question, reply to its message. To link this chat to Relay, send /start."
 
@@ -180,15 +181,19 @@ func (p *Poller) handleMessage(ctx context.Context, m *UpdateMessage) error {
 	return p.handleReply(ctx, m)
 }
 
-// handleReply records a typed or voice-note reply to a question.
+// handleReply records a typed, voice-note or picture reply to a question.
 func (p *Poller) handleReply(ctx context.Context, m *UpdateMessage) error {
 	chat := m.Chat.ID
 	a := channel.Answer{
 		Channel: Name, Address: strconv.FormatInt(chat, 10), Option: -1, Text: m.Text,
 		ProviderMessageID: strconv.FormatInt(m.ReplyToMessage.MessageID, 10),
 	}
-	if v := m.voice(); v != nil {
-		audio, err := p.Client.downloadVoice(ctx, v)
+	voice, f := m.voice(), m.image()
+	if voice != nil {
+		f = voice
+	}
+	if f != nil {
+		data, err := p.Client.download(ctx, f)
 		if errors.Is(err, errTooLarge) {
 			return p.Client.SendText(ctx, chat, tooLong, m.MessageID)
 		}
@@ -196,7 +201,11 @@ func (p *Poller) handleReply(ctx context.Context, m *UpdateMessage) error {
 			_ = p.Client.SendText(ctx, chat, "Something went wrong, please try again.", m.MessageID)
 			return err
 		}
-		a.Audio, a.AudioType = audio, v.contentType()
+		if voice != nil {
+			a.Audio, a.AudioType = data, f.contentType()
+		} else if t := imageType(data); t != "" { // a document that isn't a picture is no answer
+			a.Image, a.ImageType = data, t
+		}
 	}
 	res, err := p.OnAnswer(ctx, a)
 	if err != nil {

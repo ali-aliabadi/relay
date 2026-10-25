@@ -86,6 +86,7 @@ should be one small PR unless noted. Design details are in
 - [x] Telegram poller in `serve`: button taps, replies, `/start` link codes
 - [x] `GET /v1/messages/{id}/answers`; answers changeable until fetched, encrypted, purged at retention
 - [x] Voice-note answers: `question` with `reply: "voice"`, audio up to 20 MB, encrypted, returned base64
+- [x] Picture answers: `question` with `reply: "image"`, a photo or image file (PNG, JPEG, WebP) up to 20 MB, encrypted, returned base64
 
 ## Phase 8: easier linking and names
 

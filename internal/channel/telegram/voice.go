@@ -12,8 +12,8 @@ import (
 	"github.com/ali-aliabadi/relay/internal/message"
 )
 
-// voiceFile is a voice note (or an audio file) someone sent the bot.
-type voiceFile struct {
+// botFile is a file someone sent the bot: a voice note, audio file, photo or document.
+type botFile struct {
 	FileID   string `json:"file_id"`
 	FileSize int64  `json:"file_size"`
 	MimeType string `json:"mime_type"`
@@ -23,7 +23,7 @@ type voiceFile struct {
 var errTooLarge = errors.New("file too large")
 
 // voice returns the message's voice note or audio file, if it has one.
-func (m *UpdateMessage) voice() *voiceFile {
+func (m *UpdateMessage) voice() *botFile {
 	if m.Voice != nil {
 		return m.Voice
 	}
@@ -33,7 +33,7 @@ func (m *UpdateMessage) voice() *voiceFile {
 // contentType is the file's audio MIME type without parameters. The sender
 // sets it for audio files, so anything else falls back to Ogg Opus, which
 // Telegram voice notes are.
-func (v *voiceFile) contentType() string {
+func (v *botFile) contentType() string {
 	mt, _, err := mime.ParseMediaType(v.MimeType)
 	if err != nil || !strings.HasPrefix(mt, "audio/") || len(mt) > message.MaxContentTypeLen {
 		return "audio/ogg"
@@ -41,10 +41,10 @@ func (v *voiceFile) contentType() string {
 	return mt
 }
 
-// downloadVoice fetches a voice note's bytes, refusing anything over
-// message.MaxVoiceBytes before and while downloading.
-func (c *Client) downloadVoice(ctx context.Context, v *voiceFile) ([]byte, error) {
-	if v.FileSize > message.MaxVoiceBytes {
+// download fetches a file's bytes, refusing anything over
+// message.MaxAnswerFileBytes before and while downloading.
+func (c *Client) download(ctx context.Context, v *botFile) ([]byte, error) {
+	if v.FileSize > message.MaxAnswerFileBytes {
 		return nil, errTooLarge
 	}
 	var f struct {
@@ -54,7 +54,7 @@ func (c *Client) downloadVoice(ctx context.Context, v *voiceFile) ([]byte, error
 	if err := c.call(ctx, "getFile", map[string]any{"file_id": v.FileID}, &f); err != nil {
 		return nil, err
 	}
-	if f.FileSize > message.MaxVoiceBytes {
+	if f.FileSize > message.MaxAnswerFileBytes {
 		return nil, errTooLarge
 	}
 	if f.FilePath == "" || strings.Contains(f.FilePath, "..") {
@@ -73,11 +73,11 @@ func (c *Client) downloadVoice(ctx context.Context, v *voiceFile) ([]byte, error
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("downloading file: status %d", resp.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, message.MaxVoiceBytes+1))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, message.MaxAnswerFileBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("downloading file: %w", scrub(err))
 	}
-	if len(data) > message.MaxVoiceBytes {
+	if len(data) > message.MaxAnswerFileBytes {
 		return nil, errTooLarge
 	}
 	return data, nil

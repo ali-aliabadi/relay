@@ -36,9 +36,12 @@ func (a *Answers) Record(ctx context.Context, in channel.Answer) (channel.Answer
 	res, text := evaluate(m, in)
 	if res.Outcome == channel.AnswerSaved {
 		var saved bool
-		if len(in.Audio) > 0 { // only a voice question saves audio (see evaluate)
+		switch { // only a voice question saves audio, and only an image question a picture (see evaluate)
+		case len(in.Audio) > 0:
 			saved, err = a.Store.SaveVoiceAnswer(ctx, m.ID, d.RecipientID, in.AudioType, in.Audio)
-		} else {
+		case len(in.Image) > 0:
+			saved, err = a.Store.SaveImageAnswer(ctx, m.ID, d.RecipientID, in.ImageType, in.Image)
+		default:
 			saved, err = a.Store.SaveAnswer(ctx, m.ID, d.RecipientID, text)
 		}
 		if err != nil {
@@ -59,7 +62,7 @@ func (a *Answers) Record(ctx context.Context, in channel.Answer) (channel.Answer
 }
 
 // evaluate checks an answer against the message's question and returns the
-// outcome and, when saved, the answer text (empty for a voice note).
+// outcome and, when saved, the answer text (empty for a voice note or picture).
 func evaluate(m store.Message, in channel.Answer) (channel.AnswerResult, string) {
 	if m.RedactedAt != nil {
 		return channel.AnswerResult{Outcome: channel.AnswerExpired}, ""
@@ -69,14 +72,17 @@ func evaluate(m store.Message, in channel.Answer) (channel.AnswerResult, string)
 		return channel.AnswerResult{Outcome: channel.AnswerUnknown}, ""
 	}
 	res := channel.AnswerResult{Outcome: channel.AnswerSaved, Options: q.Options}
-	if q.Reply == message.ReplyVoice {
-		if len(in.Audio) == 0 {
-			res.Outcome = channel.AnswerNeedVoice
-		}
+	switch {
+	case q.Reply == message.ReplyVoice && len(in.Audio) == 0:
+		res.Outcome = channel.AnswerNeedVoice
+	case q.Reply == message.ReplyImage && len(in.Image) == 0:
+		res.Outcome = channel.AnswerNeedImage
+	}
+	if q.Reply != "" {
 		return res, ""
 	}
 	switch {
-	case len(in.Audio) > 0 && len(q.Options) == 0:
+	case (len(in.Audio) > 0 || len(in.Image) > 0) && len(q.Options) == 0:
 		res.Outcome = channel.AnswerNeedText
 	case len(q.Options) > 0 && in.Option < 0:
 		res.Outcome = channel.AnswerNeedOption

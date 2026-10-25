@@ -22,6 +22,8 @@ type Answer struct {
 	FetchedAt   sql.NullString
 	Audio       []byte
 	AudioType   sql.NullString
+	Image       []byte
+	ImageType   sql.NullString
 }
 
 type Attachment struct {
