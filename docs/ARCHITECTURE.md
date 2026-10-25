@@ -105,7 +105,7 @@ deliveries       id, message_id, recipient_id, channel, status
                  (queued|sending|delivered|failed), attempts, next_attempt_at,
                  provider_message_id, last_error, created_at, updated_at
 answers          message_id, recipient_id, answer, audio (BLOB) NULL, audio_type NULL,
-                 answered_at, fetched_at NULL
+                 image (BLOB) NULL, image_type NULL, answered_at, fetched_at NULL
                  PRIMARY KEY (message_id, recipient_id)
 invites          recipient_id, channel, handle (Telegram username), created_at
                  PRIMARY KEY (recipient_id, channel)
@@ -118,7 +118,7 @@ Tables are SQLite `STRICT`. Times are stored as UTC text in a fixed-width format
 cascades to its contacts and deliveries.
 
 Private columns (`messages.title`, `messages.blocks`, `attachments.bytes`,
-`contacts.address`, `answers.answer`, `answers.audio`, `invites.handle`) are stored encrypted (see Privacy and security).
+`contacts.address`, `answers.answer`, `answers.audio`, `answers.image`, `invites.handle`) are stored encrypted (see Privacy and security).
 
 An answer can be replaced while `fetched_at` is NULL. The first
 `GET /v1/messages/{id}/answers` that returns it sets `fetched_at`, and from then
@@ -168,7 +168,7 @@ Errors use one shape: `{"error": {"code": "invalid_request", "message": "..."}}`
 - Malformed JSON, unknown fields or trailing data are `400 invalid_json`; a body over `RELAY_MAX_BODY_BYTES` is `413 too_large`.
 - A recipient must have a linked contact on a configured channel, otherwise `to[i]: recipient has no linked channel to send on`.
 - Every name in `to` is a username or an **alias** (another name for a recipient, e.g. `admin` → `ali`, managed with `relay recipients alias|unalias`). Names that reach the same person collapse into one delivery, so `["admin", "ali"]` sends once. Aliases and usernames share one namespace, so a name always means exactly one person. Answers report the real username.
-- `GET /v1/messages/{id}/answers` returns `{"answers": [{"recipient": "<username>", "answer", "audio"?, "answered_at"}]}`, one per recipient who answered (empty while waiting). It is the only endpoint that returns content, because the asking app is its source. Another client's message is `404`; answers are deleted with the content at retention.
+- `GET /v1/messages/{id}/answers` returns `{"answers": [{"recipient": "<username>", "answer", "audio"?, "image"?, "answered_at"}]}`, one per recipient who answered (empty while waiting). It is the only endpoint that returns content, because the asking app is its source. Another client's message is `404`; answers are deleted with the content at retention.
 - `GET /v1/messages/{id}` returns metadata only (`id`, `status`, `urgency`, `source`, `request_id`, `created_at`, `redacted`) plus `deliveries` (`id`, `recipient_id`, `channel`, `status`, `attempts`, `next_attempt_at`, `last_error`, `updated_at`). Content is never returned. Another client's message is `404`.
 - `GET /v1/messages?status=&since=<RFC 3339>&limit=1-100&cursor=` returns `{"messages": [...], "next_cursor": "msg_..."}`, newest first; `next_cursor` is present when the page is full.
 - Recipients: `POST` takes `username`, `display_name`, optional `timezone` (IANA, default `UTC`) and `channel_preference` (default `["telegram"]`); `PUT` replaces `display_name`, `timezone` and `channel_preference`. Responses add `aliases`, `linked_channels` (channel names only, never addresses) and `created_at`. A username already taken by an alias is `409`. Recipients are addressed by username in these routes; aliases are for `to`.
@@ -211,7 +211,7 @@ is the same as one `text` block.
 | `file` | `filename`, `base64`, optional `content_type` (default `application/octet-stream`), optional `caption` | `sendDocument` upload; title + text become the caption when short enough, otherwise a follow-up message |
 | `code` | `text` | `<pre>` block |
 | `link` | `text`, `url` (https only) | Inline keyboard button |
-| `question` | `text`, optional `options` (1-10, each up to 64 chars, unique), optional `webhook` (https), optional `reply: "voice"` (no options) | `❓ <b>text</b>` at the end (never truncated away); options become answer buttons, otherwise "Reply to this message to answer." (or "…with a voice note…") |
+| `question` | `text`, optional `options` (1-10, each up to 64 chars, unique), optional `webhook` (https), optional `reply: "voice"` or `reply: "image"` (no options) | `❓ <b>text</b>` at the end (never truncated away); options become answer buttons, otherwise "Reply to this message to answer." (or "…with a voice note…", "…with a picture…") |
 
 Rules: `title` is shown bold at the top; `source` as a small footer; `critical`
 adds 🚨 to the title. At most one `question` block. Limits: 20 blocks, 50 table rows × 8 columns, 1 image in the
@@ -323,6 +323,7 @@ loses nothing.
 - **Button tap:** the button's callback data is `a:<delivery_id>:<option>`. Relay checks the tap came from the chat that delivery went to, saves the option, shows a toast and redraws the buttons with ✅ on the choice (link buttons are kept).
 - **Typed reply:** a Telegram reply to the question message, matched by (channel, provider message ID) and the chat. A message that isn't a reply gets a hint; a typed reply to a question with buttons asks for a button.
 - **Voice reply:** for a question with `reply: "voice"`, a Telegram voice note (or audio file) sent as a reply. The poller checks the size (20 MB, Telegram's cap on bot downloads) before downloading it with `getFile`, then stores the bytes encrypted in `answers.audio`; the API returns them base64 with their content type and `answer` empty. Text to a voice question asks for a voice note; a voice note to a typed question asks for text. The bytes are never logged.
+- **Picture reply:** for a question with `reply: "image"`, a Telegram photo (its largest size) or a document sent as a reply, with the same 20 MB check and download. The bytes decide the type (`http.DetectContentType`): only PNG, JPEG and WebP are kept, in `answers.image`, encrypted, and returned base64 as `image` with `answer` empty. Anything else to a picture question asks for a picture; a picture to a typed question asks for text. A document keeps full quality; Telegram compresses a photo to 1280 px on its long side.
 - **Feedback:** every answer gets a short reply: saved, already final, expired (content purged), or not a question.
 - **Webhook:** after a saved answer, Relay POSTs `{"event": "answer", "message_id"}` to the question's `webhook`, retrying after 5s and 30s. Only public addresses are dialed (checked after DNS resolution, so a hostname pointing at a private IP is refused too), redirects aren't followed, and the URL is never logged. Retries live in memory; apps should also poll.
 

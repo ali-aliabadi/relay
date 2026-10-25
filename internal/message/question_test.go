@@ -17,6 +17,7 @@ func TestNormalizeQuestion(t *testing.T) {
 		{"max options", Block{Type: BlockQuestion, Text: "Pick", Options: strings.Split("abcdefghij", "")}},
 		{"long option", Block{Type: BlockQuestion, Text: "Pick", Options: []string{strings.Repeat("o", MaxOptionLen)}}},
 		{"voice reply", Block{Type: BlockQuestion, Text: "Please read this script aloud.", Reply: ReplyVoice}},
+		{"image reply", Block{Type: BlockQuestion, Text: "Please make this picture.", Reply: ReplyImage}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -56,8 +57,9 @@ func TestNormalizeRejectsBadQuestions(t *testing.T) {
 		{"webhook no host", []Block{q("?", nil, "https://")}, "webhook: must be an https URL"},
 		{"two questions", []Block{q("a?", nil, ""), q("b?", nil, "")}, "at most 1 question"},
 		{"foreign field", []Block{{Type: BlockQuestion, Text: "?", URL: "https://a.b"}}, "don't belong"},
-		{"unknown reply", []Block{{Type: BlockQuestion, Text: "?", Reply: "video"}}, "reply: must be voice"},
+		{"unknown reply", []Block{{Type: BlockQuestion, Text: "?", Reply: "video"}}, "reply: must be voice or image"},
 		{"voice with options", []Block{{Type: BlockQuestion, Text: "?", Reply: ReplyVoice, Options: []string{"a"}}}, "voice answer can't have options"},
+		{"image with options", []Block{{Type: BlockQuestion, Text: "?", Reply: ReplyImage, Options: []string{"a"}}}, "image answer can't have options"},
 		{"reply on text block", []Block{{Type: BlockText, Text: "x", Reply: ReplyVoice}}, "don't belong"},
 		{"options on text block", []Block{{Type: BlockText, Text: "x", Options: []string{"a"}}}, "don't belong"},
 		{"webhook on link block", []Block{{Type: BlockLink, Text: "x", URL: "https://a.b", Webhook: "https://a.b"}}, "don't belong"},

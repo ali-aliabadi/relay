@@ -172,10 +172,10 @@ func checkQuestion(c *checker, path string, b *Block) {
 		checkURL(c, path+".webhook", b.Webhook)
 	}
 	switch {
-	case b.Reply != "" && b.Reply != ReplyVoice:
-		c.addf("%s.reply: must be voice, or be left out", path)
-	case b.Reply == ReplyVoice && b.Options != nil:
-		c.addf("%s.reply: a voice answer can't have options", path)
+	case b.Reply != "" && b.Reply != ReplyVoice && b.Reply != ReplyImage:
+		c.addf("%s.reply: must be voice or image, or be left out", path)
+	case b.Reply != "" && b.Options != nil:
+		c.addf("%s.reply: a %s answer can't have options", path, b.Reply)
 	}
 }
 

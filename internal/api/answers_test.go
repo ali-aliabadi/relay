@@ -87,6 +87,32 @@ func TestAnswersEndpointVoice(t *testing.T) {
 	}
 }
 
+func TestAnswersEndpointImage(t *testing.T) {
+	h := newV1(t)
+	ali := h.linkedRecipient()
+	res := h.do("POST", "/v1/messages", `{"to":["ali"],"blocks":[{"type":"question","text":"Make this picture.","reply":"image"}]}`)
+	if res.status != http.StatusAccepted {
+		t.Fatalf("create image question = %d %s", res.status, res.raw)
+	}
+	id := res.body["id"].(string)
+	if ok, err := h.st.SaveImageAnswer(t.Context(), id, ali.ID, "image/png", []byte("\x89PNG")); !ok || err != nil {
+		t.Fatalf("SaveImageAnswer = %v, %v", ok, err)
+	}
+	res = h.do("GET", "/v1/messages/"+id+"/answers", "")
+	as, _ := res.body["answers"].([]any)
+	if res.status != http.StatusOK || len(as) != 1 {
+		t.Fatalf("answers = %d %s", res.status, res.raw)
+	}
+	a := as[0].(map[string]any)
+	image, _ := a["image"].(map[string]any)
+	if a["answer"] != "" || a["audio"] != nil || image["content_type"] != "image/png" || image["base64"] != "iVBORw==" {
+		t.Errorf("answer = %v", a)
+	}
+	if strings.Contains(h.logs.String(), "iVBORw") {
+		t.Errorf("logs contain the picture: %s", h.logs.String())
+	}
+}
+
 func TestAnswersEndpointAccess(t *testing.T) {
 	h := newV1(t)
 	ali := h.linkedRecipient()

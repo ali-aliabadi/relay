@@ -89,14 +89,15 @@ func (h messageHandlers) get(w http.ResponseWriter, r *http.Request) {
 }
 
 type answerResponse struct {
-	Recipient  string         `json:"recipient"`
-	Answer     string         `json:"answer"` // empty for a voice note
-	Audio      *audioResponse `json:"audio,omitempty"`
-	AnsweredAt string         `json:"answered_at"`
+	Recipient  string        `json:"recipient"`
+	Answer     string        `json:"answer"` // empty for a voice note or picture
+	Audio      *fileResponse `json:"audio,omitempty"`
+	Image      *fileResponse `json:"image,omitempty"`
+	AnsweredAt string        `json:"answered_at"`
 }
 
-// audioResponse is a voice-note answer, inline like the file blocks apps send.
-type audioResponse struct {
+// fileResponse is a voice-note or picture answer, inline like the file blocks apps send.
+type fileResponse struct {
 	ContentType string `json:"content_type"`
 	Base64      string `json:"base64"`
 }
@@ -113,7 +114,10 @@ func (h messageHandlers) answers(w http.ResponseWriter, r *http.Request) {
 	for _, a := range as {
 		ar := answerResponse{Recipient: a.Username, Answer: a.Text, AnsweredAt: a.AnsweredAt.Format(time.RFC3339Nano)}
 		if a.Audio != nil {
-			ar.Audio = &audioResponse{ContentType: a.AudioType, Base64: base64.StdEncoding.EncodeToString(a.Audio)}
+			ar.Audio = &fileResponse{ContentType: a.AudioType, Base64: base64.StdEncoding.EncodeToString(a.Audio)}
+		}
+		if a.Image != nil {
+			ar.Image = &fileResponse{ContentType: a.ImageType, Base64: base64.StdEncoding.EncodeToString(a.Image)}
 		}
 		out = append(out, ar)
 	}

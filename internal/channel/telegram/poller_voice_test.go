@@ -32,7 +32,7 @@ func TestPollerVoiceReplyIsDownloaded(t *testing.T) {
 
 func TestPollerVoiceReplyTooLarge(t *testing.T) {
 	r := startPoller(t, nil)
-	r.bot.AddVoiceReply(42, 7, make([]byte, message.MaxVoiceBytes+1))
+	r.bot.AddVoiceReply(42, 7, make([]byte, message.MaxAnswerFileBytes+1))
 	if got := r.await(t, "sendMessage", 1)[0].Params["text"]; got != tooLong {
 		t.Errorf("feedback = %v", got)
 	}
@@ -70,7 +70,7 @@ func TestVoiceContentType(t *testing.T) {
 		"audio/<script>":                    "audio/ogg",
 		"audio/" + strings.Repeat("x", 300): "audio/ogg",
 	} {
-		if got := (&voiceFile{MimeType: in}).contentType(); got != want {
+		if got := (&botFile{MimeType: in}).contentType(); got != want {
 			t.Errorf("contentType(%q) = %q, want %q", in, got, want)
 		}
 	}

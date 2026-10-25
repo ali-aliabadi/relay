@@ -23,7 +23,7 @@ func (q *Queries) DeleteAnswersBefore(ctx context.Context, cutoff string) (int64
 }
 
 const listAnswersForMessage = `-- name: ListAnswersForMessage :many
-SELECT a.message_id, a.recipient_id, r.username, a.answer, a.audio, a.audio_type, a.answered_at
+SELECT a.message_id, a.recipient_id, r.username, a.answer, a.audio, a.audio_type, a.image, a.image_type, a.answered_at
 FROM answers a JOIN recipients r ON r.id = a.recipient_id
 WHERE a.message_id = ? ORDER BY a.answered_at, r.username
 `
@@ -35,6 +35,8 @@ type ListAnswersForMessageRow struct {
 	Answer      []byte
 	Audio       []byte
 	AudioType   sql.NullString
+	Image       []byte
+	ImageType   sql.NullString
 	AnsweredAt  string
 }
 
@@ -54,6 +56,8 @@ func (q *Queries) ListAnswersForMessage(ctx context.Context, messageID string) (
 			&i.Answer,
 			&i.Audio,
 			&i.AudioType,
+			&i.Image,
+			&i.ImageType,
 			&i.AnsweredAt,
 		); err != nil {
 			return nil, err
@@ -84,9 +88,11 @@ func (q *Queries) MarkAnswersFetched(ctx context.Context, arg MarkAnswersFetched
 }
 
 const saveAnswer = `-- name: SaveAnswer :execrows
-INSERT INTO answers (message_id, recipient_id, answer, audio, audio_type, answered_at) VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO answers (message_id, recipient_id, answer, audio, audio_type, image, image_type, answered_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (message_id, recipient_id) DO UPDATE SET answer = excluded.answer, audio = excluded.audio,
-    audio_type = excluded.audio_type, answered_at = excluded.answered_at
+    audio_type = excluded.audio_type, image = excluded.image, image_type = excluded.image_type,
+    answered_at = excluded.answered_at
 WHERE answers.fetched_at IS NULL
 `
 
@@ -96,6 +102,8 @@ type SaveAnswerParams struct {
 	Answer      []byte
 	Audio       []byte
 	AudioType   sql.NullString
+	Image       []byte
+	ImageType   sql.NullString
 	AnsweredAt  string
 }
 
@@ -107,6 +115,8 @@ func (q *Queries) SaveAnswer(ctx context.Context, arg SaveAnswerParams) (int64, 
 		arg.Answer,
 		arg.Audio,
 		arg.AudioType,
+		arg.Image,
+		arg.ImageType,
 		arg.AnsweredAt,
 	)
 	if err != nil {

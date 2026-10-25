@@ -162,6 +162,8 @@ func renderFooter(msg message.Message) frag {
 		switch {
 		case b.Reply == message.ReplyVoice:
 			q = join("\n", q, wrap("i", text("Reply to this message with a voice note to answer.")))
+		case b.Reply == message.ReplyImage:
+			q = join("\n", q, wrap("i", text("Reply to this message with a picture to answer (send it as a file to keep full quality).")))
 		case len(b.Options) == 0:
 			q = join("\n", q, wrap("i", text("Reply to this message to answer.")))
 		}
