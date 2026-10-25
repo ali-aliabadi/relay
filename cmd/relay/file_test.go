@@ -5,15 +5,32 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ali-aliabadi/relay/internal/message"
 )
 
-// TestFileThroughServe sends the largest allowed file through the public API
-// and checks it reaches Telegram as a document, within the default body limit,
-// without the file's name or bytes reaching the logs.
+// TestFileThroughServe sends the largest file the default body limit allows,
+// and with a raised RELAY_MAX_BODY_BYTES the largest allowed file, through the
+// public API, and checks each reaches Telegram as a document without the
+// file's name or bytes reaching the logs.
 func TestFileThroughServe(t *testing.T) {
+	t.Run("default body limit", func(t *testing.T) { fileThroughServe(t, message.DefaultFileBytes, "") })
+	t.Run("raised body limit", func(t *testing.T) { fileThroughServe(t, message.MaxFileBytes, "67108864") })
+}
+
+func fileThroughServe(t *testing.T, size int, maxBody string) {
+	t.Helper()
 	c, bot := newTelegramCLI(t)
+	if maxBody != "" {
+		env := c.env
+		c.env = func(k string) (string, bool) {
+			if k == "RELAY_MAX_BODY_BYTES" {
+				return maxBody, true
+			}
+			return env(k)
+		}
+	}
 	c.run("recipients", "add", "ali", "--name", "Ali")
 	base, logs := startServe(t, c)
 	if rc, _, errOut := c.run("recipients", "link", "ali", linkCode(t, bot, 515151)); rc != 0 {
@@ -22,8 +39,8 @@ func TestFileThroughServe(t *testing.T) {
 	_, out, _ := c.run("clients", "create", "billing")
 	api := &apiClient{t: t, base: base, key: keyRe.FindString(out)}
 
-	data := bytes.Repeat([]byte("secret-invoice-bytes "), message.MaxFileBytes/21)
-	data = append(data, make([]byte, message.MaxFileBytes-len(data))...)
+	data := bytes.Repeat([]byte("secret-invoice-bytes "), size/21)
+	data = append(data, make([]byte, size-len(data))...)
 	created := api.call("POST", "/v1/messages", `{"to":["ali"],"title":"Invoice","blocks":[
 		{"type":"file","filename":"private-invoice.pdf","content_type":"application/pdf",
 		 "caption":"September","base64":"`+base64.StdEncoding.EncodeToString(data)+`"}]}`)
@@ -31,7 +48,7 @@ func TestFileThroughServe(t *testing.T) {
 	if id == "" {
 		t.Fatalf("create = %s", api.lastBody)
 	}
-	waitFor(t, func() bool {
+	waitUpTo(t, time.Minute, func() bool {
 		return api.call("GET", "/v1/messages/"+id, "")["status"] == "delivered"
 	})
 	docs := bot.Calls("sendDocument")

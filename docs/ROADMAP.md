@@ -98,6 +98,7 @@ should be one small PR unless noted. Design details are in
 ## Phase 9: files
 
 - [x] `file` block (inline base64, any type, up to 5 MB, one per message) sent as a Telegram document; relay-notify skill and clients updated
+- [x] Files up to 45 MB (reel-bot's finished videos) when `RELAY_MAX_BODY_BYTES` is raised; Telegram uploads get 5 minutes
 
 ## Later
 
