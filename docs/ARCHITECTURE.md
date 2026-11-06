@@ -418,3 +418,23 @@ See the "Later" section of docs/ROADMAP.md. Design notes for the big ones:
 - **Telegram acks**: a `question` with one "Got it" option covers the ack; unacked `critical` messages escalating is still to do.
 - **Self sign-up**: anyone could ask to join via the bot and the admin approves. Today the admin invites by Telegram username instead, which covers two people.
 - **MCP server**: exposes `send_message` so Claude and other agents can notify through Relay.
+
+## Editing delivered text
+
+`PATCH /v1/messages/{id}/text` is authenticated and scoped to the creating app.
+Core validates 1–2000 characters, verifies that the original contains just one
+text block, is delivered and unredacted, then preflights all deliveries before
+calling the optional `channel.TextEditor` interface. Telegram uses
+`editMessageText` with the original provider ID and the existing escaped layout.
+No new message, recipient or callback is created; questions and attachments cannot
+be edited. Identical Telegram edits are idempotent. The entire operation has a
+15-second context deadline; provider errors are returned without content.
+
+Provider IDs are chat-scoped: editing requires a verified contact predating the
+message's creation. A destination relinked after the message was queued is
+conservatively refused, even if a later retry delivered it to that destination.
+This prevents an old message ID from being used against a new chat. Edits are not
+archived; original encrypted content and retention remain unchanged. Channel
+health responses include an `edit_text` capability flag, false on unsupported
+channels. Calls can partially succeed across recipients if a provider fails;
+retrying the same text safely reconciles those deliveries without resending.

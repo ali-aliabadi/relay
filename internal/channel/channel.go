@@ -23,6 +23,11 @@ type Channel interface {
 	Preview(msg message.Message) (Preview, error)
 }
 
+// TextEditor updates a delivered, single-part text message without sending another.
+type TextEditor interface {
+	EditText(ctx context.Context, to Contact, providerID string, msg message.Message) error
+}
+
 // HealthChecker is implemented by channels that can check their provider.
 type HealthChecker interface {
 	// Health returns a short, safe reason when the channel can't send.

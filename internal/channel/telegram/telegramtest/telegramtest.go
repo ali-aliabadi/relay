@@ -158,7 +158,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.send(w, idx)
 	case "getFile":
 		s.getFile(w, call.Params)
-	case "answerCallbackQuery", "editMessageReplyMarkup", "deleteMessage", "setMyCommands":
+	case "editMessageText", "answerCallbackQuery", "editMessageReplyMarkup", "deleteMessage", "setMyCommands":
 		reply(w, http.StatusOK, Failure{}, true)
 	default:
 		reply(w, http.StatusNotFound, Failure{Status: 404, Desc: "Not Found: method not found"}, nil)
