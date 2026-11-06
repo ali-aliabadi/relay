@@ -372,3 +372,28 @@ deletes it after the retention period, but Telegram keeps the chat. So:
   remember the file name is shown as well.
 - Relay never echoes your content in errors or logs; don't log the message
   bodies you send or the answers you get either. Log message IDs.
+
+## Updating a progress message in place
+
+When a user requests live progress, send one normal `urgency: "low"` message
+with only `text` (or one text block), then edit it instead of sending repeated
+notifications. Check `GET /v1/channels`: the target channel must report both
+`healthy: true` and `edit_text: true`. Older Relay releases omit `edit_text`;
+wait for an upgrade rather than creating status messages that cannot be updated.
+
+After the initial message is delivered, `PATCH /v1/messages/{id}/text` accepts
+`{"text":"Rendering: 42%"}` and returns `{"id":"msg_...","status":"updated"}`.
+Use the usual bearer key and Content-Type header. The Python helper script does
+not wrap this endpoint yet; use the HTTP API directly or an app client.
+
+Only the creating app may update its delivered, unredacted, single-text-block
+message. Replacement text is 1–2000 characters. Title, source, urgency and
+recipients stay fixed. Questions, attachments, links, multiple blocks, queued
+messages and contacts relinked since creation are refused (`409 not_editable`).
+Provider failure returns `502 update_failed`; the whole call has a 15-second
+limit. Retry later with the same text; identical edits are safe. Never send a
+replacement message automatically when an edit fails. Keep progress edits gentle
+(e.g. once per 20 seconds), use real percentages only, and show waiting/error
+states explicitly. Relay retains only the encrypted original payload, not edit
+history, and editing never extends retention. Message text, contact addresses,
+keys and provider replies must never be logged.

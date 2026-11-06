@@ -199,3 +199,22 @@ All configuration is environment variables (`RELAY_ADDR`, `RELAY_DB_PATH`,
 ## License
 
 [MIT](LICENSE)
+
+## Editable status messages
+
+For a changing progress line, first send an ordinary message with a single
+`text` block (or the `text` shorthand), preferably `urgency: "low"`. Once it is
+delivered, call `PATCH /v1/messages/{id}/text` with `{"text":"Rendering: 42%"}`.
+The response is `{"id":"msg_...","status":"updated"}`. Repeating an identical
+edit is safe and does not send another message. Updates are synchronous, bounded
+to 15 seconds, and never automatically fall back to a new send.
+
+Only the creating app's delivered, non-redacted, single-text-block messages can
+be edited. Questions, photos, files, links, multi-block messages and changed or
+unverified destinations are refused with `409 not_editable`. Text must be 1–2000
+characters; recipient, source, title and urgency cannot be changed. A provider
+failure returns `502 update_failed` without private details. `GET /v1/channels`
+reports `edit_text: true` for supporting channels, alongside their health.
+
+Edits change the provider message only: Relay's encrypted original payload and
+its original retention deadline stay unchanged. No edit history is retained.

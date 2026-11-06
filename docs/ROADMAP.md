@@ -122,3 +122,5 @@ Roughly in priority order; promote items into a phase when starting them.
 - [ ] Relay alerts ali on itself: queue backing up or a channel failing repeatedly
 - [ ] Encryption key rotation command (`relay keys rotate`)
 - [ ] SessionStart hook so cloud Claude sessions have the right Go, sqlc and golangci-lint
+
+- [x] Authenticated edits of delivered text messages for app progress cards, with destination guards, capability discovery and idempotent Telegram updates

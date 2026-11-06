@@ -22,6 +22,7 @@ type Channel struct {
 
 	mu    sync.Mutex
 	sent  []Sent
+	edits []Sent
 	fails []error // returned by the next sends, in order
 }
 
@@ -65,4 +66,24 @@ func (c *Channel) Sent() []Sent {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return append([]Sent(nil), c.sent...)
+}
+
+// EditText records an edit separately from sends.
+func (c *Channel) EditText(_ context.Context, to channel.Contact, _ string, msg message.Message) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.fails) > 0 {
+		err := c.fails[0]
+		c.fails = c.fails[1:]
+		return err
+	}
+	c.edits = append(c.edits, Sent{To: to, Msg: msg})
+	return nil
+}
+
+// Edits returns recorded edits.
+func (c *Channel) Edits() []Sent {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]Sent(nil), c.edits...)
 }
