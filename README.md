@@ -218,3 +218,9 @@ reports `edit_text: true` for supporting channels, alongside their health.
 
 Edits change the provider message only: Relay's encrypted original payload and
 its original retention deadline stay unchanged. No edit history is retained.
+
+Delivered single-part text status cards can be removed with authenticated
+`DELETE /v1/messages/{id}/text` (204). Only the creating app's messages qualify;
+questions and media are refused. Check the channel's `delete_text` capability
+and confirm a replacement is delivered before deleting its predecessor. Original
+encrypted archives follow the existing retention policy.

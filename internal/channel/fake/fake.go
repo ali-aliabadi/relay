@@ -20,10 +20,11 @@ type Sent struct {
 type Channel struct {
 	name string
 
-	mu    sync.Mutex
-	sent  []Sent
-	edits []Sent
-	fails []error // returned by the next sends, in order
+	mu      sync.Mutex
+	sent    []Sent
+	edits   []Sent
+	fails   []error // returned by the next sends, in order
+	deleted []string
 }
 
 // New returns a fake channel called name.
@@ -86,4 +87,24 @@ func (c *Channel) Edits() []Sent {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return append([]Sent(nil), c.edits...)
+}
+
+// DeleteText records deletion separately from sends and edits.
+func (c *Channel) DeleteText(_ context.Context, _ channel.Contact, providerID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.fails) > 0 {
+		err := c.fails[0]
+		c.fails = c.fails[1:]
+		return err
+	}
+	c.deleted = append(c.deleted, providerID)
+	return nil
+}
+
+// Deleted returns the provider IDs removed so far.
+func (c *Channel) Deleted() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.deleted...)
 }

@@ -28,6 +28,11 @@ type TextEditor interface {
 	EditText(ctx context.Context, to Contact, providerID string, msg message.Message) error
 }
 
+// TextDeleter removes an already delivered single-part text message.
+type TextDeleter interface {
+	DeleteText(ctx context.Context, to Contact, providerID string) error
+}
+
 // HealthChecker is implemented by channels that can check their provider.
 type HealthChecker interface {
 	// Health returns a short, safe reason when the channel can't send.
