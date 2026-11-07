@@ -124,3 +124,6 @@ Roughly in priority order; promote items into a phase when starting them.
 - [ ] SessionStart hook so cloud Claude sessions have the right Go, sqlc and golangci-lint
 
 - [x] Authenticated edits of delivered text messages for app progress cards, with destination guards, capability discovery and idempotent Telegram updates
+
+- [x] App-scoped deletion of delivered plain text status cards, enabling callers to
+  keep a replacement at the bottom without deleting questions or media.

@@ -50,6 +50,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.Handle("POST /v1/messages", authed(http.HandlerFunc(mh.create)))
 	mux.Handle("GET /v1/messages", authed(http.HandlerFunc(mh.list)))
 	mux.Handle("PATCH /v1/messages/{id}/text", authed(http.HandlerFunc(mh.editText)))
+	mux.Handle("DELETE /v1/messages/{id}/text", authed(http.HandlerFunc(mh.deleteText)))
 	mux.Handle("GET /v1/messages/{id}", authed(http.HandlerFunc(mh.get)))
 	mux.Handle("GET /v1/messages/{id}/answers", authed(http.HandlerFunc(mh.answers)))
 	mux.Handle("POST /v1/preview", authed(http.HandlerFunc(mh.preview)))
