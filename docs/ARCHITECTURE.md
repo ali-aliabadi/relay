@@ -438,3 +438,15 @@ archived; original encrypted content and retention remain unchanged. Channel
 health responses include an `edit_text` capability flag, false on unsupported
 channels. Calls can partially succeed across recipients if a provider fails;
 retrying the same text safely reconciles those deliveries without resending.
+
+`DELETE /v1/messages/{id}/text` removes the creating app's delivered, unredacted
+single-part plain text message from its provider chats. It reuses edit ownership,
+delivery and contact-verification preflights, and verifies the original render
+is exactly one text part before any deletion. Questions, media, multipart text,
+queued/failed deliveries and relinked destinations are refused. It returns 204,
+404 for another app's ID, 409 when ineligible, or a content-free 502 on provider
+failure. Telegram deletion is idempotent when the message is already absent;
+provider age limits still apply. The encrypted archive and retention deadline
+are unchanged. `GET /v1/channels` exposes `delete_text` for supporting channels.
+Callers replacing a status card must confirm replacement delivery before deleting
+the previous card; percentage updates should edit the current one.

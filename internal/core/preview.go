@@ -42,10 +42,11 @@ func (m *Messages) Preview(req message.Request) (map[string]channel.Preview, err
 
 // ChannelStatus is one configured channel and whether it can send.
 type ChannelStatus struct {
-	Name     string `json:"name"`
-	Healthy  bool   `json:"healthy"`
-	EditText bool   `json:"edit_text"`
-	Error    string `json:"error,omitempty"`
+	Name       string `json:"name"`
+	Healthy    bool   `json:"healthy"`
+	EditText   bool   `json:"edit_text"`
+	DeleteText bool   `json:"delete_text"`
+	Error      string `json:"error,omitempty"`
 }
 
 // healthTimeout bounds each channel's health check.
@@ -57,6 +58,7 @@ func (m *Messages) Channels(ctx context.Context) []ChannelStatus {
 	for _, ch := range m.channels {
 		st := ChannelStatus{Name: ch.Name(), Healthy: true}
 		_, st.EditText = ch.(channel.TextEditor)
+		_, st.DeleteText = ch.(channel.TextDeleter)
 		if hc, ok := ch.(channel.HealthChecker); ok {
 			hctx, cancel := context.WithTimeout(ctx, healthTimeout)
 			err := hc.Health(hctx)

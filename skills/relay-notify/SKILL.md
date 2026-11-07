@@ -397,3 +397,18 @@ replacement message automatically when an edit fails. Keep progress edits gentle
 states explicitly. Relay retains only the encrypted original payload, not edit
 history, and editing never extends retention. Message text, contact addresses,
 keys and provider replies must never be logged.
+
+### Remove a delivered plain text status card
+
+`DELETE /v1/messages/{id}/text` (authenticated, no request body) removes only a
+message created by this app, delivered and unredacted, whose original rendering
+is one plain text part. Questions, files and images are ineligible. It returns
+204 on success, 404 for an unknown/other-app message, 409 when ineligible and 502
+on provider failure. Telegram's deletion age limit applies. A repeated deletion
+of an already absent provider message succeeds. Relay's encrypted archive still
+follows normal retention; this is not an archive-erasure endpoint.
+
+Check `delete_text: true` on the channel first. To keep a live status at the
+bottom, send a new card only after the step message is delivered, wait for the
+new card to be delivered, then delete the previous card. Keep editing the newest
+card for routine percentage changes. Never delete a question to move a status.
