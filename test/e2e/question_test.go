@@ -146,6 +146,6 @@ func (s *stack) checkAnimatedFileReply(label, mime, data string) {
 	a := s.waitAnswer(id)
 	image, _ := a["image"].(map[string]any)
 	if a["answer"] != "" || image["content_type"] != mime || image["base64"] != base64.StdEncoding.EncodeToString([]byte(data)) {
-		t.Errorf("%s answer = %v", label, a)
+		s.t.Errorf("%s answer = %v", label, a)
 	}
 }
