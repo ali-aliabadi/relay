@@ -281,8 +281,8 @@ curl -sS -X POST "$RELAY_URL/v1/messages" \
   check `answer` on your next run rather than blocking on `--wait`.
 - `reply: "image"` (optional, no `options`): the person answers by replying with a
   picture, as a photo or as an image file (a file keeps full quality; Telegram
-  shrinks photos to 1280 px). PNG, JPEG, WebP or GIF up to 20 MB. Send GIFs as
-  files to preserve the animation's original format. Anything else gets a hint.
+  shrinks photos to 1280 px), inline animation or video. PNG, JPEG, WebP, GIF or
+  MP4 up to 20 MB. An inline animation may arrive as `video/mp4`. Anything else gets a hint.
 - At most one question per message.
 - `webhook` (optional): a public `https` URL. When an answer arrives, Relay POSTs
   `{"event": "answer", "message_id": "msg_..."}` to it: only the ID, never the

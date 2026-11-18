@@ -50,7 +50,7 @@ var feedback = map[string]string{
 	channel.AnswerNeedOption: "Please answer with one of the buttons.",
 	channel.AnswerNeedText:   "Please answer with text.",
 	channel.AnswerNeedVoice:  "Please answer with a voice note, as a reply to the question.",
-	channel.AnswerNeedImage:  "Please answer with a picture (a photo or an image file), as a reply to the question.",
+	channel.AnswerNeedImage:  "Please reply to the question with a picture, GIF or short MP4.",
 }
 
 // tooLong is the feedback for a file over message.MaxAnswerFileBytes.
