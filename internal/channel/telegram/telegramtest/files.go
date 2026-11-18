@@ -1,6 +1,7 @@
 package telegramtest
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -31,6 +32,18 @@ func (s *Server) AddDocumentReply(chatID, replyTo int64, data []byte, mimeType s
 	id := s.addFile(data)
 	s.addFileReply(chatID, replyTo, "document",
 		map[string]any{"file_id": id, "file_size": len(data), "file_name": "picture", "mime_type": mimeType})
+}
+
+func (s *Server) documentReply(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	chat, chatErr := strconv.ParseInt(q.Get("chat_id"), 10, 64)
+	to, replyErr := strconv.ParseInt(q.Get("reply_to"), 10, 64)
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
+	if chatErr != nil || replyErr != nil || err != nil {
+		http.Error(w, "bad document reply", http.StatusBadRequest)
+		return
+	}
+	s.AddDocumentReply(chat, to, data, r.Header.Get("Content-Type"))
 }
 
 func (s *Server) addFile(data []byte) string {

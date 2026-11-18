@@ -12,11 +12,11 @@ func (m *UpdateMessage) image() *botFile {
 	return m.Document
 }
 
-// imageType is data's type when it is a PNG, JPEG or WebP picture, and ""
-// otherwise. It reads the bytes, never the sender's mime_type.
+// imageType returns the supported picture type from the file's bytes.
+// Telegram's mime_type can differ from what was downloaded.
 func imageType(data []byte) string {
 	switch t := http.DetectContentType(data); t {
-	case "image/png", "image/jpeg", "image/webp":
+	case "image/png", "image/jpeg", "image/webp", "image/gif":
 		return t
 	}
 	return ""

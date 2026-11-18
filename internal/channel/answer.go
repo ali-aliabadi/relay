@@ -17,7 +17,7 @@ type Answer struct {
 	Audio             []byte // a voice-note reply, already downloaded
 	AudioType         string // Audio's content type, e.g. audio/ogg
 	Image             []byte // a picture reply (photo or image file), already downloaded
-	ImageType         string // Image's content type: image/png, image/jpeg or image/webp
+	ImageType         string // Image's content type: image/png, image/jpeg, image/webp or image/gif
 }
 
 // LogValue keeps the address and text out of logs.

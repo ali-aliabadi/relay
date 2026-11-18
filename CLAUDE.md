@@ -121,7 +121,8 @@ Three levels, all required for new behaviour:
 
 ## Working agreement
 
-- Branch from `master`, open a PR; merging to `master` **deploys to production**.
+- Branch from `master` and open a PR. For each PR you create, merge it once CI
+  passes and verify that the production deployment succeeds.
 - Keep docs in sync in the same PR: tick boxes in docs/ROADMAP.md, update docs/ARCHITECTURE.md if the design changed, README.md if usage changed, and `skills/relay-notify/SKILL.md` if anything an API caller sees changed (fields, limits, errors, behaviour).
 - Small PRs, one roadmap item (or a few tightly related ones) each.
 - If a design question isn't answered in docs/ARCHITECTURE.md, ask ali rather than guessing on anything user-visible.
