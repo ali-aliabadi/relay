@@ -112,28 +112,40 @@ func TestQuestionEndToEnd(t *testing.T) {
 	}
 }
 
-func TestGIFReplyEndToEnd(t *testing.T) {
+func TestAnimatedFileReplyEndToEnd(t *testing.T) {
 	s := startStack(t)
 	if code, body := s.api(http.MethodPost, "/v1/recipients", `{"username":"ali","display_name":"Ali"}`); code != http.StatusCreated {
 		t.Fatalf("create recipient = %d %v", code, body)
 	}
 	s.link("ali")
-	code, created := s.api(http.MethodPost, "/v1/messages", `{"to":["ali"],"blocks":[{"type":"question","text":"Send a GIF","reply":"image"}]}`)
-	if code != http.StatusAccepted {
-		t.Fatalf("create question = %d %v", code, created)
-	}
-	id := created["id"].(string)
-	sent := s.question("Send a GIF")
-	s.waitDelivered(id, 15*time.Second)
-	const encoded = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-	data, err := base64.StdEncoding.DecodeString(encoded)
+	gif, err := base64.StdEncoding.DecodeString("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.control(http.MethodPost, fmt.Sprintf("/_document?chat_id=%s&reply_to=%d", fakeChatID, sent.MessageID), string(data))
+	for _, tc := range []struct{ label, mime, data string }{
+		{"GIF", "image/gif", string(gif)},
+		// Relay forwards the container bytes; reel-bot decodes the MP4.
+		{"MP4", "video/mp4", "\x00\x00\x00\x14ftypisom\x00\x00\x02\x00mp41"},
+	} {
+		s.checkAnimatedFileReply(tc.label, tc.mime, tc.data)
+	}
+}
+
+func (s *stack) checkAnimatedFileReply(label, mime, data string) {
+	s.t.Helper()
+	prompt := "Send a " + label
+	req := fmt.Sprintf(`{"to":["ali"],"blocks":[{"type":"question","text":%q,"reply":"image"}]}`, prompt)
+	code, created := s.api(http.MethodPost, "/v1/messages", req)
+	if code != http.StatusAccepted {
+		s.t.Fatalf("create question = %d %v", code, created)
+	}
+	id := created["id"].(string)
+	sent := s.question(prompt)
+	s.waitDelivered(id, 15*time.Second)
+	s.control(http.MethodPost, fmt.Sprintf("/_document?chat_id=%s&reply_to=%d", fakeChatID, sent.MessageID), data)
 	a := s.waitAnswer(id)
 	image, _ := a["image"].(map[string]any)
-	if a["answer"] != "" || image["content_type"] != "image/gif" || image["base64"] != encoded {
-		t.Errorf("GIF answer = %v", a)
+	if a["answer"] != "" || image["content_type"] != mime || image["base64"] != base64.StdEncoding.EncodeToString([]byte(data)) {
+		s.t.Errorf("%s answer = %v", label, a)
 	}
 }

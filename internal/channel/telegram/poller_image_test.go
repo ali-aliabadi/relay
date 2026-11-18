@@ -13,6 +13,7 @@ var (
 	pngData  = []byte("\x89PNG\r\n\x1a\nsecret picture")
 	jpegData = []byte("\xff\xd8\xff\xe0secret photo")
 	gifData  = []byte("GIF89a secret animation")
+	mp4Data  = []byte("\x00\x00\x00\x14ftypisom\x00\x00\x02\x00mp41")
 )
 
 func TestPollerPhotoReplyTakesTheLargestSize(t *testing.T) {
@@ -44,7 +45,8 @@ func TestPollerDocumentReply(t *testing.T) {
 		{"png", "image/png", pngData, "image/png"},
 		{"bytes decide, not the sender's type", "application/pdf", pngData, "image/png"},
 		{"GIF sent as file", "application/octet-stream", gifData, "image/gif"},
-		{"converted MP4 is unsupported", "image/gif", []byte("\x00\x00\x00\x18ftypmp42"), ""},
+		{"MP4 sent as file", "application/octet-stream", mp4Data, "video/mp4"},
+		{"truncated MP4", "video/mp4", mp4Data[:12], ""},
 		{"not a picture", "image/png", []byte("%PDF-1.7 secret"), ""},
 	}
 	for _, tt := range tests {
@@ -58,6 +60,24 @@ func TestPollerDocumentReply(t *testing.T) {
 			}
 			if tt.wantType != "" && !bytes.Equal(a[0].Image, tt.data) {
 				t.Error("the downloaded file was modified")
+			}
+		})
+	}
+}
+
+func TestPollerAnimatedMediaReply(t *testing.T) {
+	for _, source := range []string{"animation", "video"} {
+		t.Run(source, func(t *testing.T) {
+			r := startPoller(t, nil)
+			if source == "animation" {
+				r.bot.AddAnimationReply(42, 7, mp4Data)
+			} else {
+				r.bot.AddVideoReply(42, 7, mp4Data)
+			}
+			r.await(t, "sendMessage", 1)
+			a := r.got()
+			if len(a) != 1 || a[0].ImageType != "video/mp4" || !bytes.Equal(a[0].Image, mp4Data) {
+				t.Fatalf("MP4 was not forwarded as a picture answer: %+v", a)
 			}
 		})
 	}

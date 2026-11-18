@@ -29,10 +29,12 @@ type UpdateMessage struct {
 		MessageID int64 `json:"message_id"`
 	} `json:"reply_to_message"`
 	ReplyMarkup *replyMarkup `json:"reply_markup"`
-	Voice       *botFile     `json:"voice"`    // a voice note
-	Audio       *botFile     `json:"audio"`    // an audio file, accepted like a voice note
-	Photo       []botFile    `json:"photo"`    // a photo, in sizes smallest first
-	Document    *botFile     `json:"document"` // a file, accepted as a picture when it is one
+	Voice       *botFile     `json:"voice"`     // a voice note
+	Audio       *botFile     `json:"audio"`     // an audio file, accepted like a voice note
+	Photo       []botFile    `json:"photo"`     // a photo, in sizes smallest first
+	Animation   *botFile     `json:"animation"` // inline GIF or silent MP4
+	Document    *botFile     `json:"document"`  // a file, checked by its bytes
+	Video       *botFile     `json:"video"`     // Telegram may send a clip as video
 }
 
 // CallbackQuery is a tap on an inline button with callback data.

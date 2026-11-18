@@ -34,6 +34,20 @@ func (s *Server) AddDocumentReply(chatID, replyTo int64, data []byte, mimeType s
 		map[string]any{"file_id": id, "file_size": len(data), "file_name": "picture", "mime_type": mimeType})
 }
 
+// AddAnimationReply queues an inline Telegram animation replying to replyTo.
+func (s *Server) AddAnimationReply(chatID, replyTo int64, data []byte) {
+	id := s.addFile(data)
+	s.addFileReply(chatID, replyTo, "animation",
+		map[string]any{"file_id": id, "file_size": len(data), "mime_type": "video/mp4"})
+}
+
+// AddVideoReply queues a Telegram video attachment replying to replyTo.
+func (s *Server) AddVideoReply(chatID, replyTo int64, data []byte) {
+	id := s.addFile(data)
+	s.addFileReply(chatID, replyTo, "video",
+		map[string]any{"file_id": id, "file_size": len(data), "mime_type": "video/mp4"})
+}
+
 func (s *Server) documentReply(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	chat, chatErr := strconv.ParseInt(q.Get("chat_id"), 10, 64)
