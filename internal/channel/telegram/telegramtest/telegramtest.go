@@ -120,7 +120,7 @@ func (s *Server) Calls(method string) []Call {
 }
 
 // ServeHTTP implements the Bot API paths (/bot<token>/<method>) plus control
-// endpoints for the e2e suite: GET /_calls, POST /_fail, POST /_reply, POST /_tap.
+// endpoints for the e2e suite: GET /_calls, POST /_fail, POST /_reply, POST /_document, POST /_tap.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/_") {
 		s.control(w, r)
@@ -215,6 +215,8 @@ func (s *Server) control(w http.ResponseWriter, r *http.Request) {
 		chat, _ := strconv.ParseInt(q.Get("chat_id"), 10, 64)
 		to, _ := strconv.ParseInt(q.Get("reply_to"), 10, 64)
 		s.addMessage(chat, to, q.Get("text"), q.Get("username"))
+	case "/_document":
+		s.documentReply(w, r)
 	case "/_tap":
 		q := r.URL.Query()
 		chat, _ := strconv.ParseInt(q.Get("chat_id"), 10, 64)

@@ -12,6 +12,7 @@ import (
 var (
 	pngData  = []byte("\x89PNG\r\n\x1a\nsecret picture")
 	jpegData = []byte("\xff\xd8\xff\xe0secret photo")
+	gifData  = []byte("GIF89a secret animation")
 )
 
 func TestPollerPhotoReplyTakesTheLargestSize(t *testing.T) {
@@ -42,6 +43,8 @@ func TestPollerDocumentReply(t *testing.T) {
 	}{
 		{"png", "image/png", pngData, "image/png"},
 		{"bytes decide, not the sender's type", "application/pdf", pngData, "image/png"},
+		{"GIF sent as file", "application/octet-stream", gifData, "image/gif"},
+		{"converted MP4 is unsupported", "image/gif", []byte("\x00\x00\x00\x18ftypmp42"), ""},
 		{"not a picture", "image/png", []byte("%PDF-1.7 secret"), ""},
 	}
 	for _, tt := range tests {
@@ -52,6 +55,9 @@ func TestPollerDocumentReply(t *testing.T) {
 			a := r.got()
 			if len(a) != 1 || a[0].ImageType != tt.wantType || (tt.wantType == "") != (a[0].Image == nil) {
 				t.Fatalf("answers = %+v", a)
+			}
+			if tt.wantType != "" && !bytes.Equal(a[0].Image, tt.data) {
+				t.Error("the downloaded file was modified")
 			}
 		})
 	}
@@ -85,7 +91,8 @@ func TestImageType(t *testing.T) {
 		"png":   {pngData, "image/png"},
 		"jpeg":  {jpegData, "image/jpeg"},
 		"webp":  {[]byte("RIFF\x00\x00\x00\x00WEBPVP8 "), "image/webp"},
-		"gif":   {[]byte("GIF89a"), ""},
+		"gif87": {[]byte("GIF87a"), "image/gif"},
+		"gif89": {gifData, "image/gif"},
 		"html":  {[]byte("<html><img>"), ""},
 		"empty": {nil, ""},
 	} {

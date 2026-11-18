@@ -5,6 +5,7 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,5 +109,31 @@ func TestQuestionEndToEnd(t *testing.T) {
 	}
 	if !bytes.Contains(out, []byte(`"msg":"answer"`)) {
 		t.Error("no answer log line")
+	}
+}
+
+func TestGIFReplyEndToEnd(t *testing.T) {
+	s := startStack(t)
+	if code, body := s.api(http.MethodPost, "/v1/recipients", `{"username":"ali","display_name":"Ali"}`); code != http.StatusCreated {
+		t.Fatalf("create recipient = %d %v", code, body)
+	}
+	s.link("ali")
+	code, created := s.api(http.MethodPost, "/v1/messages", `{"to":["ali"],"blocks":[{"type":"question","text":"Send a GIF","reply":"image"}]}`)
+	if code != http.StatusAccepted {
+		t.Fatalf("create question = %d %v", code, created)
+	}
+	id := created["id"].(string)
+	sent := s.question("Send a GIF")
+	s.waitDelivered(id, 15*time.Second)
+	const encoded = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+	data, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.control(http.MethodPost, fmt.Sprintf("/_document?chat_id=%s&reply_to=%d", fakeChatID, sent.MessageID), string(data))
+	a := s.waitAnswer(id)
+	image, _ := a["image"].(map[string]any)
+	if a["answer"] != "" || image["content_type"] != "image/gif" || image["base64"] != encoded {
+		t.Errorf("GIF answer = %v", a)
 	}
 }
